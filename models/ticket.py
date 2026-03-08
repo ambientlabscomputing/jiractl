@@ -1,0 +1,1 @@
+# pydantic model for a Jira ticket
