@@ -1,11 +1,50 @@
 import os
-from pathlib import Path
+import time
 import httpx
+from pathlib import Path
 from rich.console import Console
 from models.config import Config
 
 
 console = Console()
+
+# Retry settings
+_MAX_RETRIES = 4
+_RETRY_BACKOFF_BASE = 1.0   # seconds; doubles each attempt: 1, 2, 4, 8
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _request_with_retry(fn, *args, **kwargs) -> httpx.Response:
+    """
+    Call an httpx request function, retrying on transient errors.
+    Respects Retry-After header on 429 responses.
+    """
+    for attempt in range(_MAX_RETRIES):
+        response: httpx.Response = fn(*args, **kwargs)
+
+        if response.status_code not in _RETRYABLE_STATUS:
+            response.raise_for_status()
+            return response
+
+        if attempt == _MAX_RETRIES - 1:
+            response.raise_for_status()
+
+        # Determine wait time
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            wait = float(retry_after)
+        else:
+            wait = _RETRY_BACKOFF_BASE * (2 ** attempt)
+
+        console.print(
+            f"[yellow]⚠ HTTP {response.status_code} — retrying in {wait:.1f}s "
+            f"(attempt {attempt + 1}/{_MAX_RETRIES})[/yellow]"
+        )
+        time.sleep(wait)
+
+    # Should not reach here
+    response.raise_for_status()
+    return response  # type: ignore
 
 
 class JiraClient:
@@ -14,8 +53,7 @@ class JiraClient:
     def __init__(self, config: Config):
         self.config = config
         self.token = self._read_token()
-        
-        # Create httpx client with basic auth
+
         auth = httpx.BasicAuth(config.email, self.token)
         self.client = httpx.Client(
             base_url=config.base_url,
@@ -26,12 +64,10 @@ class JiraClient:
 
     def _read_token(self) -> str:
         """Read Jira API token from ~/.jira/token or JIRA_TOKEN env var"""
-        # Try environment variable first
         token = os.getenv("JIRA_TOKEN")
         if token:
             return token
 
-        # Try file
         token_file = Path.home() / ".jira" / "token"
         if token_file.exists():
             return token_file.read_text().strip()
@@ -40,29 +76,25 @@ class JiraClient:
             "Jira API token not found. Set JIRA_TOKEN env var or create ~/.jira/token"
         )
 
+    def _url(self, path: str) -> str:
+        return path if path.startswith("http") else f"/rest/api/3{path}"
+
     def get(self, path: str, params: dict = None) -> dict:
-        """GET request to Jira API"""
-        url = path if path.startswith("http") else f"/rest/api/3{path}"
-        response = self.client.get(url, params=params)
-        response.raise_for_status()
+        """GET request with automatic retry"""
+        response = _request_with_retry(self.client.get, self._url(path), params=params)
         return response.json()
 
     def post(self, path: str, payload: dict) -> dict:
-        """POST request to Jira API"""
-        url = path if path.startswith("http") else f"/rest/api/3{path}"
-        response = self.client.post(url, json=payload)
-        response.raise_for_status()
+        """POST request with automatic retry"""
+        response = _request_with_retry(self.client.post, self._url(path), json=payload)
         return response.json()
 
     def put(self, path: str, payload: dict) -> dict:
-        """PUT request to Jira API"""
-        url = path if path.startswith("http") else f"/rest/api/3{path}"
-        response = self.client.put(url, json=payload)
-        response.raise_for_status()
+        """PUT request with automatic retry"""
+        response = _request_with_retry(self.client.put, self._url(path), json=payload)
         return response.json()
 
     def close(self):
-        """Close the HTTP client"""
         self.client.close()
 
     def __enter__(self):
@@ -70,3 +102,4 @@ class JiraClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
