@@ -77,122 +77,6 @@ def get_project_key(
     raise ValueError("Invalid project selection")
 
 
-def run_transform(
-    input_files: tuple[str],
-    output_dir: str,
-    config: Config,
-    project: Optional[str] = None,
-) -> Path:
-    """
-    Core transform logic — converts input CSV(s) into epics.csv and stories.csv.
-    Returns the output directory path.
-    """
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    all_epics = []
-    all_stories = []
-
-    for input_file in input_files:
-        click.echo(f"Processing {input_file}...")
-
-        # Find the first non-empty row to use as header
-        skip_rows = 0
-        with open(input_file, 'r') as f:
-            for i, line in enumerate(f):
-                if line.strip() and not all(c in ',' for c in line.strip()):
-                    skip_rows = i
-                    break
-
-        df = pd.read_csv(input_file, skiprows=skip_rows)
-        df = df.dropna(how="all")
-        df = df.loc[:, (df != "").any(axis=0)]
-        df.columns = [str(col).strip() for col in df.columns]
-        df = df.reset_index(drop=True)
-
-        if df.empty:
-            click.secho(f"  Warning: {input_file} is empty after cleaning", fg="yellow")
-            continue
-
-        cols = detect_columns(df)
-
-        if not cols["issue_type"]:
-            raise ValueError(
-                f"{input_file}: Could not find 'issue type' column. Found: {list(df.columns)}"
-            )
-        if not cols["summary"]:
-            raise ValueError(
-                f"{input_file}: Could not find 'summary' column. Found: {list(df.columns)}"
-            )
-        if not cols["description"]:
-            raise ValueError(
-                f"{input_file}: Could not find 'description' column. Found: {list(df.columns)}"
-            )
-
-        project_key = get_project_key(input_file, config, project)
-
-        for idx, row in df.iterrows():
-            issue_type = str(row[cols["issue_type"]]).strip().lower()
-            summary = str(row[cols["summary"]]).strip()
-            description = (
-                str(row[cols["description"]]).strip()
-                if pd.notna(row[cols["description"]])
-                else ""
-            )
-
-            if issue_type == "epic":
-                epic_name = (
-                    str(row[cols["epic_name"]]).strip()
-                    if cols["epic_name"]
-                    else summary
-                )
-                all_epics.append(
-                    {
-                        "Project Key": project_key,
-                        "Epic Name": epic_name,
-                        "Summary": summary,
-                        "Description": description,
-                    }
-                )
-
-            elif issue_type == "story":
-                epic_link = (
-                    str(row[cols["epic_link"]]).strip()
-                    if cols["epic_link"] and pd.notna(row[cols["epic_link"]])
-                    else ""
-                )
-                all_stories.append(
-                    {
-                        "Project Key": project_key,
-                        "Summary": summary,
-                        "Description": description,
-                        "Epic Link": epic_link,
-                    }
-                )
-
-    epics_df = pd.DataFrame(all_epics)
-    stories_df = pd.DataFrame(all_stories)
-
-    epics_path = output_path / "epics.csv"
-    stories_path = output_path / "stories.csv"
-
-    epics_df.to_csv(epics_path, index=False)
-    stories_df.to_csv(stories_path, index=False)
-
-    # Print summary
-    console.print()
-    table = Table(title="Transform Summary")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Count", style="magenta")
-    table.add_row("Epics", str(len(epics_df)))
-    table.add_row("Stories", str(len(stories_df)))
-    console.print(table)
-    console.print(f"\n[green]✓[/green] Epics written to {epics_path}")
-    console.print(f"[green]✓[/green] Stories written to {stories_path}")
-
-    return output_path
-
-
 @click.command()
 @click.argument("input_files", nargs=-1, type=click.Path(exists=True), required=True)
 @click.option(
@@ -218,4 +102,114 @@ def transform(
 ):
     """Transform generic CSV files into epics.csv and stories.csv"""
     config: Config = ctx.obj["config"]
-    run_transform(input_files, output_dir, config, project)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    all_epics = []
+    all_stories = []
+
+    # Process each input file
+    for input_file in input_files:
+        click.echo(f"Processing {input_file}...")
+
+        # Read CSV, starting from row with actual headers
+        # First, we need to find where the headers are by reading the file
+        with open(input_file, 'r') as f:
+            for i, line in enumerate(f):
+                # Skip completely empty lines
+                if line.strip() and not all(c in ',' for c in line.strip()):
+                    skip_rows = i
+                    break
+        
+        df = pd.read_csv(input_file, skiprows=skip_rows)
+        df = df.dropna(how="all")  # Drop entirely empty rows
+        df = df.loc[:, (df != "").any(axis=0)]  # Drop entirely empty columns
+        df.columns = [str(col).strip() for col in df.columns]  # Clean column names
+        df = df.reset_index(drop=True)
+
+        if df.empty:
+            click.secho(f"  Warning: {input_file} is empty after cleaning", fg="yellow")
+            continue
+
+        # Detect columns
+        cols = detect_columns(df)
+
+        # Validate required columns
+        if not cols["issue_type"]:
+            raise ValueError(
+                f"{input_file}: Could not find 'issue type' column. Found: {list(df.columns)}"
+            )
+        if not cols["summary"]:
+            raise ValueError(
+                f"{input_file}: Could not find 'summary' column. Found: {list(df.columns)}"
+            )
+        if not cols["description"]:
+            raise ValueError(
+                f"{input_file}: Could not find 'description' column. Found: {list(df.columns)}"
+            )
+
+        # Get project key (same for all rows in a file)
+        project_key = get_project_key(input_file, config, project)
+
+        # Process rows
+        for idx, row in df.iterrows():
+            issue_type = str(row[cols["issue_type"]]).strip().lower()
+            summary = str(row[cols["summary"]]).strip()
+            description = str(row[cols["description"]]).strip() if pd.notna(
+                row[cols["description"]]
+            ) else ""
+
+            if issue_type == "epic":
+                # Epic requires epic_name
+                if cols["epic_name"]:
+                    epic_name = str(row[cols["epic_name"]]).strip()
+                else:
+                    epic_name = summary  # Fallback to summary
+
+                all_epics.append(
+                    {
+                        "Project Key": project_key,
+                        "Epic Name": epic_name,
+                        "Summary": summary,
+                        "Description": description,
+                    }
+                )
+
+            elif issue_type == "story":
+                # Story requires epic_link
+                epic_link = ""
+                if cols["epic_link"]:
+                    epic_link = str(row[cols["epic_link"]]).strip() if pd.notna(
+                        row[cols["epic_link"]]
+                    ) else ""
+
+                all_stories.append(
+                    {
+                        "Project Key": project_key,
+                        "Summary": summary,
+                        "Description": description,
+                        "Epic Link": epic_link,
+                    }
+                )
+
+    # Write output files
+    epics_df = pd.DataFrame(all_epics)
+    stories_df = pd.DataFrame(all_stories)
+
+    epics_path = output_path / "epics.csv"
+    stories_path = output_path / "stories.csv"
+
+    epics_df.to_csv(epics_path, index=False)
+    stories_df.to_csv(stories_path, index=False)
+
+    # Print summary
+    console.print()
+    table = Table(title="Transform Summary")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Count", style="magenta")
+    table.add_row("Epics", str(len(epics_df)))
+    table.add_row("Stories", str(len(stories_df)))
+    console.print(table)
+
+    console.print(f"\n[green]✓[/green] Epics written to {epics_path}")
+    console.print(f"[green]✓[/green] Stories written to {stories_path}")

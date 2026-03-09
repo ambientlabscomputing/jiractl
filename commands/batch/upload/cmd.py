@@ -6,11 +6,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from models.config import Config
-from models.epic import Epic
-from models.ticket import Story
 from jira_api.client import JiraClient
 from jira_api.issues import create_epic, create_story
-from commands.batch.transform.cmd import transform as transform_cmd
+from commands.batch.transform.cmd import run_transform
 from commands.batch.validate.cmd import validate_epics, validate_stories
 
 
@@ -56,158 +54,126 @@ def upload(
     input_path = Path(input_dir)
 
     # If --transform, run transform first into a temp directory
+    tmpdir_obj = None
     if transform:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            console.print("[cyan]Running transform...[/cyan]")
-            # Use click invoke to run transform command
-            transform_ctx = ctx.obj
-            transform_cmd.invoke(
-                click.Context(
-                    transform_cmd,
-                    obj={"config": config},
-                ),
-                input_files=(input_dir,),
-                output_dir=tmpdir,
-                project=project,
-            )
-            input_path = Path(tmpdir)
-
-    # Load and validate files
-    console.print("[cyan]Validating files...[/cyan]")
-    epics_df, stories_df = load_csv_files(input_path)
-    valid_epics, epic_errors = validate_epics(epics_df, config)
-    valid_stories, story_errors = validate_stories(stories_df, config, valid_epics)
-
-    if epic_errors or story_errors:
-        console.print(
-            f"[red]Validation failed: {len(epic_errors) + len(story_errors)} errors[/red]"
+        console.print("[cyan]Running transform...[/cyan]")
+        tmpdir_obj = tempfile.TemporaryDirectory()
+        input_path = run_transform(
+            input_files=(input_dir,),
+            output_dir=tmpdir_obj.name,
+            config=config,
+            project=project,
         )
-        ctx.exit(1)
 
-    console.print(f"[green]✓ Validation passed ({len(valid_epics)} epics, {len(valid_stories)} stories)[/green]")
+    try:
+        # Load and validate files
+        console.print("[cyan]Validating files...[/cyan]")
+        epics_df, stories_df = load_csv_files(input_path)
+        valid_epics, epic_errors = validate_epics(epics_df, config)
+        valid_stories, story_errors = validate_stories(stories_df, config, valid_epics)
 
-    if dry_run:
-        console.print("\n[yellow]DRY RUN MODE[/yellow]")
-        console.print("Would create the following issues:\n")
+        if epic_errors or story_errors:
+            console.print(
+                f"[red]Validation failed: {len(epic_errors) + len(story_errors)} errors[/red]"
+            )
+            ctx.exit(1)
 
-        table = Table(title="Issues to Create")
-        table.add_column("Type", style="cyan")
-        table.add_column("Key", style="green")
-        table.add_column("Summary")
-        table.add_column("Project", style="magenta")
+        console.print(f"[green]✓ Validation passed ({len(valid_epics)} epics, {len(valid_stories)} stories)[/green]")
 
-        # Show epics
-        for epic in valid_epics:
-            table.add_row("Epic", f"[TBD]", epic.summary, epic.project_key)
+        if dry_run:
+            console.print("\n[yellow]DRY RUN MODE[/yellow]")
+            console.print("Would create the following issues:\n")
 
-        # Show stories
-        for story in valid_stories:
-            table.add_row("Story", f"[TBD]", story.summary, story.project_key)
-
-        console.print(table)
-        console.print("\n[yellow]No issues created (dry-run mode)[/yellow]")
-        return
-
-    # Actually upload
-    console.print("\n[cyan]Uploading to Jira...[/cyan]")
-
-    with JiraClient(config) as client:
-        created_issues = []
-        epic_key_map = {}  # epic_name -> jira_key
-
-        # Create epics first
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task_id = progress.add_task("Creating epics...", total=len(valid_epics))
+            table = Table(title="Issues to Create")
+            table.add_column("Type", style="cyan")
+            table.add_column("Key", style="green")
+            table.add_column("Summary")
+            table.add_column("Project", style="magenta")
 
             for epic in valid_epics:
-                try:
-                    jira_key = create_epic(
-                        client,
-                        epic.project_key,
-                        epic.epic_name,
-                        epic.summary,
-                        epic.description,
-                    )
-                    epic_key_map[epic.epic_name] = jira_key
-                    created_issues.append(
-                        {
-                            "type": "Epic",
-                            "key": jira_key,
-                            "summary": epic.summary,
-                            "project": epic.project_key,
-                        }
-                    )
-                    progress.update(task_id, advance=1)
-                except Exception as e:
-                    console.print(
-                        f"[red]✗ Failed to create epic '{epic.summary}': {e}[/red]"
-                    )
-                    progress.update(task_id, advance=1)
-
-        # Create stories
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task_id = progress.add_task("Creating stories...", total=len(valid_stories))
-
+                table.add_row("Epic", "[TBD]", epic.summary, epic.project_key)
             for story in valid_stories:
-                try:
-                    # Resolve epic link to jira key
-                    epic_jira_key = epic_key_map.get(story.epic_link)
-                    if not epic_jira_key:
-                        console.print(
-                            f"[red]✗ Story '{story.summary}': Epic '{story.epic_link}' not created[/red]"
+                table.add_row("Story", "[TBD]", story.summary, story.project_key)
+
+            console.print(table)
+            console.print("\n[yellow]No issues created (dry-run mode)[/yellow]")
+            return
+
+        # Actually upload
+        console.print("\n[cyan]Uploading to Jira...[/cyan]")
+
+        with JiraClient(config) as client:
+            created_issues = []
+            epic_key_map: dict[str, str] = {}  # epic_name -> jira_key
+
+            # Create epics first
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task("Creating epics...", total=len(valid_epics))
+                for epic in valid_epics:
+                    try:
+                        jira_key = create_epic(
+                            client,
+                            epic.project_key,
+                            epic.epic_name,
+                            epic.summary,
+                            epic.description,
                         )
-                        progress.update(task_id, advance=1)
-                        continue
-
-                    jira_key = create_story(
-                        client,
-                        story.project_key,
-                        story.summary,
-                        story.description,
-                        epic_jira_key,
-                    )
-                    created_issues.append(
-                        {
-                            "type": "Story",
-                            "key": jira_key,
-                            "summary": story.summary,
-                            "project": story.project_key,
-                        }
-                    )
-                    progress.update(task_id, advance=1)
-                except Exception as e:
-                    console.print(
-                        f"[red]✗ Failed to create story '{story.summary}': {e}[/red]"
-                    )
+                        epic_key_map[epic.epic_name] = jira_key
+                        created_issues.append(
+                            {"type": "Epic", "key": jira_key, "summary": epic.summary, "project": epic.project_key}
+                        )
+                    except Exception as e:
+                        console.print(f"[red]✗ Failed to create epic '{epic.summary}': {e}[/red]")
                     progress.update(task_id, advance=1)
 
-    # Print summary
-    console.print("\n")
-    summary_table = Table(title="Upload Summary")
-    summary_table.add_column("Type", style="cyan")
-    summary_table.add_column("Key", style="green")
-    summary_table.add_column("Summary")
-    summary_table.add_column("Project", style="magenta")
+            # Create stories
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task("Creating stories...", total=len(valid_stories))
+                for story in valid_stories:
+                    try:
+                        epic_jira_key = epic_key_map.get(story.epic_link)
+                        if not epic_jira_key:
+                            console.print(
+                                f"[red]✗ Story '{story.summary}': Epic '{story.epic_link}' not created[/red]"
+                            )
+                            progress.update(task_id, advance=1)
+                            continue
+                        jira_key = create_story(
+                            client,
+                            story.project_key,
+                            story.summary,
+                            story.description,
+                            epic_jira_key,
+                        )
+                        created_issues.append(
+                            {"type": "Story", "key": jira_key, "summary": story.summary, "project": story.project_key}
+                        )
+                    except Exception as e:
+                        console.print(f"[red]✗ Failed to create story '{story.summary}': {e}[/red]")
+                    progress.update(task_id, advance=1)
 
-    for issue in created_issues:
-        summary_table.add_row(
-            issue["type"],
-            issue["key"],
-            issue["summary"],
-            issue["project"],
-        )
+        # Print summary
+        console.print("\n")
+        summary_table = Table(title="Upload Summary")
+        summary_table.add_column("Type", style="cyan")
+        summary_table.add_column("Key", style="green")
+        summary_table.add_column("Summary")
+        summary_table.add_column("Project", style="magenta")
+        for issue in created_issues:
+            summary_table.add_row(issue["type"], issue["key"], issue["summary"], issue["project"])
+        console.print(summary_table)
+        console.print(f"\n[green]✓ Created {len(created_issues)} issues[/green]")
+        if config.base_url:
+            console.print(f"View in Jira: {config.base_url}/browse")
 
-    console.print(summary_table)
-
-    console.print(f"\n[green]✓ Created {len(created_issues)} issues[/green]")
-    if config.base_url:
-        console.print(f"View in Jira: {config.base_url}/browse")
-
+    finally:
+        if tmpdir_obj is not None:
+            tmpdir_obj.cleanup()
