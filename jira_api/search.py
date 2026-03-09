@@ -81,21 +81,25 @@ def search_issues(
     jql: str,
     fields: list[str] | None = None,
     max_results: int = 50,
-    start_at: int = 0,
-) -> tuple[list[dict], int]:
+    next_page_token: str | None = None,
+) -> tuple[list[dict], str | None]:
     """
-    Run a JQL search via GET /rest/api/3/issue/search.
-    Returns (issues, total).
+    Run a JQL search via GET /rest/api/3/search/jql (cursor-based pagination).
+    Returns (issues, next_page_token).
+    next_page_token is None when there are no more pages.
     Each issue is the raw Jira dict with a 'fields' sub-dict.
     """
-    params = {
+    params: dict = {
         "jql": jql,
         "maxResults": max_results,
-        "startAt": start_at,
         "fields": ",".join(fields or DEFAULT_FIELDS),
     }
-    data = client.get("/issue/search", params=params)
-    return data.get("issues", []), data.get("total", 0)
+    if next_page_token:
+        params["nextPageToken"] = next_page_token
+    data = client.get("/search/jql", params=params)
+    is_last = data.get("isLast", True)
+    cursor = None if is_last else data.get("nextPageToken")
+    return data.get("issues", []), cursor
 
 
 def search_all(
@@ -105,17 +109,16 @@ def search_all(
     page_size: int = 50,
 ) -> list[dict]:
     """
-    Paginate through all results for a JQL query.
+    Paginate through all results for a JQL query using cursor-based pagination.
     """
     issues: list[dict] = []
-    start = 0
+    cursor: str | None = None
     while True:
-        page, total = search_issues(
-            client, jql, fields=fields, max_results=page_size, start_at=start
+        page, cursor = search_issues(
+            client, jql, fields=fields, max_results=page_size, next_page_token=cursor
         )
         issues.extend(page)
-        start += len(page)
-        if start >= total or not page:
+        if cursor is None or not page:
             break
     return issues
 
