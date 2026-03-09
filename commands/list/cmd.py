@@ -6,11 +6,10 @@ jiractl list — tabular listing of Jira issues.
   jiractl list --epic TCRM-1
   jiractl list --mine
   jiractl list --project TCRM --status "In Progress"
+  jiractl list --project TCRM --format json
+  jiractl list --mine --format bash
 """
 import click
-from rich.console import Console
-from rich.table import Table
-from rich import box
 
 from jira_api.client import JiraClient
 from jira_api.search import (
@@ -18,60 +17,8 @@ from jira_api.search import (
     get_project_epics,
     get_project_issues,
     get_my_issues,
-    adf_to_text,
 )
-from commands.describe.cmd import (
-    _display_name,
-    _fmt_date,
-    _status_style,
-    _priority_style,
-)
-
-console = Console()
-
-
-def _issues_table(issues: list[dict], title: str = "Issues") -> Table:
-    table = Table(
-        title=title,
-        box=box.ROUNDED,
-        show_header=True,
-        header_style="bold cyan",
-        border_style="dim",
-        row_styles=["", "dim"],
-        expand=False,
-    )
-    table.add_column("Key", style="bold cyan", no_wrap=True, min_width=10)
-    table.add_column("Type", no_wrap=True, min_width=8)
-    table.add_column("Summary", min_width=44)
-    table.add_column("Status", no_wrap=True, min_width=12)
-    table.add_column("Priority", no_wrap=True, min_width=8)
-    table.add_column("Assignee", min_width=14)
-    table.add_column("Updated", no_wrap=True, min_width=10)
-
-    for issue in issues:
-        f = issue.get("fields", {})
-        key = issue.get("key", "?")
-        itype = f.get("issuetype", {}).get("name", "?")
-        summary = (f.get("summary") or "")[:64]
-        status = f.get("status", {}).get("name", "?")
-        priority = (f.get("priority") or {}).get("name", "—")
-        assignee = _display_name(f.get("assignee"))
-        updated = _fmt_date(f.get("updated"))
-
-        s = _status_style(status)
-        p = _priority_style(priority)
-
-        table.add_row(
-            key,
-            itype,
-            summary,
-            f"[{s}]{status}[/{s}]",
-            f"[{p}]{priority}[/{p}]",
-            assignee,
-            updated,
-        )
-
-    return table
+from commands.ui import console, format_option, print_issues
 
 
 @click.command("list")
@@ -84,8 +31,9 @@ def _issues_table(issues: list[dict], title: str = "Issues") -> Table:
 @click.option("--mine", is_flag=True, default=False, help="Show only issues assigned to you.")
 @click.option("--epics-only", is_flag=True, default=False, help="List only epics in the project.")
 @click.option("-n", "--limit", default=50, show_default=True, help="Max results to show.")
+@format_option()
 @click.pass_context
-def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine, epics_only, limit):
+def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine, epics_only, limit, output_format):
     """
     List Jira issues with optional filtering.
 
@@ -97,30 +45,47 @@ def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine
       jiractl list --epic TCRM-1
       jiractl list --mine
       jiractl list --project TCRM --epics-only
+      jiractl list --project TCRM --format json
+      jiractl list --mine --format bash
     """
     cfg = ctx.obj["config"]
 
     if not project and not epic_key and not mine:
         # Default: list all projects one line each
         if not cfg.allowed_projects:
-            console.print("[yellow]No allowed_projects configured.[/yellow]")
+            if output_format == "json":
+                print("[]")
+            elif output_format == "bash":
+                print("# No allowed_projects configured.")
+            else:
+                console.print("[yellow]No allowed_projects configured.[/yellow]")
             return
-        console.print("\n[bold]Configured projects:[/bold]")
-        for p in cfg.allowed_projects:
-            synonyms = cfg.synonyms.get(p, [])
-            syn_str = f"  (aliases: {', '.join(synonyms)})" if synonyms else ""
-            console.print(f"  [cyan]{p}[/cyan]{syn_str}")
-        console.print("\n[dim]Use --project PROJ to list issues, or --mine to see your issues.[/dim]")
+        if output_format == "json":
+            import json
+            print(json.dumps([{"project": p, "aliases": cfg.synonyms.get(p, [])} for p in cfg.allowed_projects], indent=2))
+        elif output_format == "bash":
+            print("PROJECT\tALIASES")
+            for p in cfg.allowed_projects:
+                print(f"{p}\t{','.join(cfg.synonyms.get(p, []))}")
+        else:
+            console.print("\n[bold]Configured projects:[/bold]")
+            for p in cfg.allowed_projects:
+                synonyms = cfg.synonyms.get(p, [])
+                syn_str = f"  (aliases: {', '.join(synonyms)})" if synonyms else ""
+                console.print(f"  [cyan]{p}[/cyan]{syn_str}")
+            console.print("\n[dim]Use --project PROJ to list issues, or --mine to see your issues.[/dim]")
         return
+
+    use_status = console.status if output_format == "table" else _noop_status
 
     with JiraClient(cfg) as client:
         if epic_key:
-            with console.status(f"Fetching children of {epic_key}..."):
+            with use_status(f"Fetching children of {epic_key}..."):
                 issues = get_epic_children(client, epic_key, max_results=limit)
             title = f"Children of {epic_key}"
 
         elif mine:
-            with console.status("Fetching your issues..."):
+            with use_status("Fetching your issues..."):
                 issues = get_my_issues(client, project_key=project, status=status, max_results=limit)
             title = "My Issues"
 
@@ -128,7 +93,7 @@ def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine
             proj = (cfg.resolve_project(project) or project.upper()) if project else None
             if not proj:
                 raise click.UsageError("--epics-only requires --project.")
-            with console.status(f"Fetching epics in {proj}..."):
+            with use_status(f"Fetching epics in {proj}..."):
                 issues = get_project_epics(client, proj, max_results=limit)
             title = f"Epics in {proj}"
 
@@ -136,7 +101,7 @@ def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine
             proj = (cfg.resolve_project(project) or project.upper()) if project else None
             if not proj:
                 raise click.UsageError("Provide --project or --epic or --mine.")
-            with console.status(f"Fetching issues in {proj}..."):
+            with use_status(f"Fetching issues in {proj}..."):
                 issues = get_project_issues(
                     client,
                     proj,
@@ -150,8 +115,18 @@ def list_issues(ctx, project, epic_key, issue_type, status, assignee, text, mine
             title = f"{proj}{type_label} — {len(issues)} issues"
 
     if not issues:
-        console.print("[yellow]No issues found matching your criteria.[/yellow]")
+        if output_format == "json":
+            print("[]")
+        elif output_format == "bash":
+            print("# No issues found.")
+        else:
+            console.print("[yellow]No issues found matching your criteria.[/yellow]")
         return
 
-    console.print(_issues_table(issues, title=title))
-    console.print(f"\n[dim]{len(issues)} issue(s) listed.[/dim]")
+    print_issues(issues, title=title, fmt=output_format)
+
+
+class _noop_status:
+    def __init__(self, *args, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
