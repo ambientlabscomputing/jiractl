@@ -1,2 +1,0 @@
-[console_scripts]
-jiractl = commands.cli:cli

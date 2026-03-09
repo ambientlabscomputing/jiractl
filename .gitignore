@@ -1,1 +1,15 @@
 jiractl.config.yaml
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Logs
+*.log

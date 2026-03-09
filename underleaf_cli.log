@@ -1,2 +1,0 @@
-{"time":"2026-03-08T19:00:46.006726-06:00","level":"INFO","msg":"Loaded configuration","os":"darwin","arch":"arm64","version":"dev-bef34fc"}
-{"time":"2026-03-08T19:00:46.007269-06:00","level":"DEBUG","msg":"config loaded","os":"darwin","arch":"arm64","configClient":{"path":"/Users/jose/.underleaf/config.yaml","type":"CLIConfigManager"}}
