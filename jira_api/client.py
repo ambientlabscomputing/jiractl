@@ -94,6 +94,10 @@ class JiraClient:
         response = _request_with_retry(self.client.put, self._url(path), json=payload)
         return response.json()
 
+    def delete(self, path: str) -> None:
+        """DELETE request with automatic retry. Returns None (Jira returns 204 No Content)."""
+        _request_with_retry(self.client.delete, self._url(path))
+
     def close(self):
         self.client.close()
 
