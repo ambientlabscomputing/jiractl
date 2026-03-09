@@ -2,6 +2,7 @@
 
 setup:
 	pyenv virtualenv -f 3.13 jiractl
+	pyenv local jiractl
 	pip install .
 
 install:

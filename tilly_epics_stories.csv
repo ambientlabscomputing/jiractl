@@ -1,0 +1,45 @@
+,,,,
+Issue Type,Summary,Description,Epic Name,Epic Link
+Epic,Provider operations workforce product,"Develop features to turn provider management into a comprehensive workforce product. This includes schedule editing, capacity limits, service assignments, provider dashboards, and enhanced provider profiles.",Provider operations,
+Story,Provider schedule editor,"Create a schedule editor UI for providers and admins to manage individual provider availability, including breaks, PTO, blackout dates, recurring patterns, and exceptions.",,Provider operations
+Story,Provider booking limits and capacities,"Add functionality to define daily/weekly booking caps, buffer times, and maximum concurrent appointments per provider to prevent overbooking.",,Provider operations
+Story,Service-to-provider assignments and skills,Introduce a configuration layer where services can be assigned to providers and skills tracked. Expose these assignments in the booking flow for intelligent routing.,,Provider operations
+Story,Provider dashboards and My appointments,"Deliver personalized dashboards for providers showing upcoming appointments, client details, and performance metrics. Ensure mobile-friendly access.",,Provider operations
+Story,Provider identity and profiles enhancement,"Enhance provider profiles with photos, biographies, specialties, ratings, and completion scores. Make key profile fields customer-facing in the booking flow.",,Provider operations
+Epic,Public booking conversion funnel,"Expand the booking journey into a conversion-optimized funnel. Include provider choice, upsells, payments, self-service changes, advanced intake forms, and hold recovery.",Public booking,
+Story,Provider selection for customers,"Allow customers to choose a preferred provider or first available during booking. Provide filters based on service, location, or rating.",,Public booking
+Story,Upsells and add-ons,Enable add-on services and product upsells in the booking flow. Support bundling and cross-selling with configurable options.,,Public booking
+Story,Payment and deposit capture,Integrate payment processing to collect deposits or full payments at booking. Support configurable deposit rules per service/provider.,,Public booking
+Story,Self-service cancellation and rescheduling,"Allow customers to cancel or reschedule appointments within defined windows, handling fees and refund logic as configured.",,Public booking
+Story,Advanced intake forms,"Provide customizable intake forms with conditional fields to collect client preferences, medical history, or project details during booking.",,Public booking
+Story,Abandoned hold recovery,Track booking holds that expire without confirmation. Send reminders or incentives to encourage conversion and report on hold-to-confirm rates.,,Public booking
+Epic,CRM and retention tooling,"Grow TillyCRM from basic client records into a retention-focused toolkit with segmentation, insights, loyalty, follow-ups, and messaging.",CRM and retention,
+Story,Client segmentation and tagging,"Extend client records with tags, preferences and behavioral segments (frequent, lapsed, VIP) to enable targeted outreach.",,CRM and retention
+Story,Visit cadence insights,"Calculate visit frequency, time since last visit, and lifetime value. Display these metrics and trigger follow-ups when clients lapse.",,CRM and retention
+Story,No-show and cancellation history,Store a client’s no-show and cancellation patterns. Use this data to require deposits or send additional reminders.,,CRM and retention
+Story,Loyalty programs and incentives,"Implement points or membership-based rewards for repeat bookings, product purchases, and referrals. Integrate loyalty status into booking flows.",,CRM and retention
+Story,Automated follow-ups and win-back campaigns,"Create templated email and SMS sequences for post-visit thank-yous, review requests, and win-back offers for lapsed clients.",,CRM and retention
+Story,Two-way messaging and conversation history,Provide a unified inbox for staff to send and receive messages via SMS/email and store conversation threads in client profiles.,,CRM and retention
+Epic,Multi-business membership experience,"Make multi-business membership a first-class experience with intuitive switching, cross-business dashboards, and provider portfolios.",Multi-business,
+Story,Business switcher UI,Design a user interface to switch between businesses easily. Include context indicators and quick access to each business’s dashboard.,,Multi-business
+Story,Cross-business dashboards,"Provide aggregated dashboards for providers or admins across multiple businesses, showing appointments, earnings, and notifications.",,Multi-business
+Story,Contractor portfolio view,"Create a profile page showing a provider’s affiliations, ratings, and availability across businesses to support network and marketplace scenarios.",,Multi-business
+Epic,Communication channel strategy,"Harden communication capabilities into a channel strategy with email support, preferences, logs, campaigns, and compliance.",Communications,
+Story,Email channel configuration and templates,Expose email settings in business settings. Allow businesses to enable email confirmations/reminders and manage customizable templates.,,Communications
+Story,Channel preferences and fallback logic,"Allow clients to set preferred channels (SMS, email or both) and implement fallback logic if the primary channel fails.",,Communications
+Story,Message logs and delivery reporting,Build a log viewer to audit outbound SMS and email messages with delivery statuses and search/filter functionality.,,Communications
+Story,Campaign messaging and broadcast,"Enable one-off messages or campaign sends to selected client segments with scheduling, templating, and analytics.",,Communications
+Story,Regulatory compliance and opt-in management,Ensure communication features comply with regulations such as TCPA and GDPR. Track client consent and provide unsubscribe options.,,Communications
+Epic,Reporting and analytics,"Add comprehensive reporting and analytics capabilities covering utilization, conversion, retention, revenue proxies, no-show metrics, and data export.",Reporting & analytics,
+Story,Utilization and capacity dashboards,"Create dashboards showing appointment volumes by day, provider, service, and location. Highlight idle time and utilization percentages.",,Reporting & analytics
+Story,Booking conversion funnel analytics,"Analyze funnel steps from page views to bookings, holds, confirmations, and cancellations. Identify drop-off points and optimize the booking journey.",,Reporting & analytics
+Story,Repeat-client and retention metrics,"Track repeat booking rates, average time between visits, and client lifetime value. Provide cohort analysis to measure retention over time.",,Reporting & analytics
+Story,Revenue proxies and mix analysis,Estimate revenue by combining service durations with pricing data and later integrate actual payment data to understand revenue mix.,,Reporting & analytics
+Story,No-show and cancellation reporting,"Create reports quantifying missed appointments by provider, service, and date range. Use insights to refine deposit and reminder policies.",,Reporting & analytics
+Story,Export and integration hooks,Provide export capabilities and APIs to connect analytics data to external BI tools for deeper analysis.,,Reporting & analytics
+Epic,AI-driven scheduling and insights,Integrate AI-driven capabilities into scheduling and client management to optimize operations and improve retention.,AI & insights,
+Story,Predictive provider scheduling,Use predictive analytics and machine learning to recommend optimal provider schedules based on historical booking patterns and seasonal trends.,,AI & insights
+Story,No-show and churn prediction,Develop models to identify clients at risk of no-showing or lapsing. Trigger proactive reminders or win-back campaigns based on risk scores.,,AI & insights
+Story,Dynamic appointment routing,"Implement logic to recommend the best provider for each booking based on availability, skills, and client preferences. Allow client override.",,AI & insights
+Story,Intelligent availability suggestions,"Offer AI-driven suggestions to clients during booking (e.g., next best slot, alternative provider) to increase conversions and reduce schedule gaps.",,AI & insights
+Story,Provider performance insights,"Provide data-driven feedback to providers on utilization, rebooking rates, and client satisfaction to support continuous improvement.",,AI & insights
