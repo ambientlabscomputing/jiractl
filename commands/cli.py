@@ -17,8 +17,10 @@ def cli(ctx: click.Context):
 
 # Import batch after defining cli to avoid circular imports
 from commands.batch.cmd import batch
+from commands.config.cmd import config_group
 
 cli.add_command(batch)
+cli.add_command(config_group, name="config")
 
 
 if __name__ == "__main__":

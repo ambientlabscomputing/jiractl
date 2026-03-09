@@ -28,7 +28,7 @@ dev = [
 jiractl = "commands.cli:cli"
 
 [tool.setuptools]
-packages = ["commands", "commands.batch", "commands.batch.transform", "commands.batch.validate", "commands.batch.upload", "jira_api", "models", "tests"]
+packages = ["commands", "commands.batch", "commands.batch.transform", "commands.batch.validate", "commands.batch.upload", "commands.config", "jira_api", "models", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

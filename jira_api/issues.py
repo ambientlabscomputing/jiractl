@@ -6,7 +6,6 @@ def _description_as_adf(text: str) -> dict:
     if not text:
         return {"type": "doc", "version": 1, "content": []}
 
-    # Simple paragraph node for now
     return {
         "type": "doc",
         "version": 1,
@@ -19,24 +18,39 @@ def _description_as_adf(text: str) -> dict:
     }
 
 
-def get_epic_link_field_id(client: JiraClient) -> str:
+def get_project_issue_types(client: JiraClient, project_key: str) -> list[dict]:
     """
-    Discover the Epic Link custom field ID from Jira.
-    Returns the field ID (e.g., "customfield_10000") or raises if not found.
+    Return the list of available issue types for a project.
+    Uses /rest/api/3/issue/createmeta/{projectKey}/issuetypes
+    Each dict has keys: id, name, description, subtask.
     """
-    fields = client.get("/field")
-    
-    for field in fields:
-        # Look for Epic Link field
-        if field.get("name") == "Epic Link" or field.get("id", "").startswith(
-            "customfield_"
-        ) and "epic" in field.get("name", "").lower():
-            return field["id"]
-    
-    # Fallback: try common custom field IDs
+    data = client.get(f"/issue/createmeta/{project_key}/issuetypes")
+    return data.get("issueTypes", [])
+
+
+def resolve_issue_type_name(
+    client: JiraClient, project_key: str, preferred_name: str
+) -> str:
+    """
+    Resolve an issue type name for a project, falling back gracefully if the
+    preferred name doesn't exist (e.g. 'Story' vs 'Task').
+    Returns the resolved name or raises ValueError.
+    """
+    types = get_project_issue_types(client, project_key)
+    names = [t["name"] for t in types]
+    if preferred_name in names:
+        return preferred_name
+    # Common fallbacks
+    fallbacks = {
+        "Story": ["Task", "User Story"],
+        "Epic": ["Epic"],
+    }
+    for fallback in fallbacks.get(preferred_name, []):
+        if fallback in names:
+            return fallback
     raise ValueError(
-        "Could not find Epic Link custom field. "
-        "This instance may use a different field configuration."
+        f"Issue type '{preferred_name}' not found in project {project_key}. "
+        f"Available types: {names}"
     )
 
 
@@ -49,16 +63,17 @@ def create_epic(
 ) -> str:
     """
     Create an Epic in Jira.
-    Returns the issue key (e.g., "PROJ-123")
+    Returns the issue key (e.g., "PROJ-123").
+
+    In Jira Cloud REST API v3 the Epic's display name is its summary.
     """
+    issue_type_name = resolve_issue_type_name(client, project_key, "Epic")
     payload = {
         "fields": {
             "project": {"key": project_key},
-            "issuetype": {"name": "Epic"},
-            "summary": summary,
+            "issuetype": {"name": issue_type_name},
+            "summary": epic_name if epic_name else summary,
             "description": _description_as_adf(description),
-            # Epic Name is a custom field - will be discovered and added as needed
-            "customfield_10000": epic_name,  # Placeholder, may vary per instance
         }
     }
 
@@ -74,19 +89,18 @@ def create_story(
     epic_key: str,
 ) -> str:
     """
-    Create a Story (task/sub-task) in Jira linked to an Epic.
-    Returns the issue key (e.g., "PROJ-456")
+    Create a Story in Jira linked to an Epic via the 'parent' field.
+    This is the correct Jira Cloud REST API v3 approach (Epic Link is deprecated).
+    Returns the issue key (e.g., "PROJ-456").
     """
-    # Get Epic Link field ID
-    epic_link_field_id = get_epic_link_field_id(client)
-
+    issue_type_name = resolve_issue_type_name(client, project_key, "Story")
     payload = {
         "fields": {
             "project": {"key": project_key},
-            "issuetype": {"name": "Story"},
+            "issuetype": {"name": issue_type_name},
             "summary": summary,
             "description": _description_as_adf(description),
-            epic_link_field_id: epic_key,
+            "parent": {"key": epic_key},
         }
     }
 
