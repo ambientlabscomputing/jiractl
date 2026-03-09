@@ -84,16 +84,17 @@ def search_issues(
     start_at: int = 0,
 ) -> tuple[list[dict], int]:
     """
-    Run a JQL search. Returns (issues, total).
+    Run a JQL search via GET /rest/api/3/issue/search.
+    Returns (issues, total).
     Each issue is the raw Jira dict with a 'fields' sub-dict.
     """
-    payload = {
+    params = {
         "jql": jql,
         "maxResults": max_results,
         "startAt": start_at,
-        "fields": fields or DEFAULT_FIELDS,
+        "fields": ",".join(fields or DEFAULT_FIELDS),
     }
-    data = client.post("/issue/search", payload)
+    data = client.get("/issue/search", params=params)
     return data.get("issues", []), data.get("total", 0)
 
 
