@@ -17,7 +17,9 @@ from jira_api.search import search_all, adf_to_text
 from commands.ui import console, flatten_issue
 
 # Statuses that count as "completed" — excluded by default
-_DONE_STATUSES = ("Done", "Closed", "Resolved", "Cancelled", "Won't Do")
+# Keywords — an issue is considered "completed" if its status *contains*
+# any of these (case-insensitive), e.g. "Done / Released" matches "done".
+_DONE_KEYWORDS = ("done", "closed", "resolved", "cancelled", "won't do")
 
 # CSV column order
 _CSV_COLUMNS = [
@@ -38,14 +40,19 @@ _CSV_COLUMNS = [
 _CSV_COLUMNS_WITH_DESC = _CSV_COLUMNS + ["description"]
 
 
+def _is_completed(issue: dict) -> bool:
+    """Return True if the issue's status contains a done-like keyword."""
+    status = (issue.get("fields", {}).get("status", {}).get("name") or "").lower()
+    return any(kw in status for kw in _DONE_KEYWORDS)
+
+
 def _build_jql(
     project: str | None,
     issue_type: str | None,
     assignee: str | None,
 ) -> str:
-    """Build JQL that excludes completed statuses."""
-    done = ", ".join(f'"{s}"' for s in _DONE_STATUSES)
-    parts = [f"status not in ({done})"]
+    """Build JQL for fetching issues (status filtering done client-side)."""
+    parts: list[str] = []
 
     if project:
         parts.append(f'project = "{project}"')
@@ -57,7 +64,7 @@ def _build_jql(
         else:
             parts.append(f'assignee = "{assignee}"')
 
-    return " AND ".join(parts) + " ORDER BY updated DESC"
+    return " AND ".join(parts or ["project is not EMPTY"]) + " ORDER BY updated DESC"
 
 
 @click.command("export")
@@ -91,6 +98,9 @@ def export(ctx, project, issue_type, assignee, output_file, include_description)
     with JiraClient(cfg) as client:
         with console.status("Fetching issues..."):
             issues = search_all(client, jql)
+
+    # Filter out completed issues client-side (handles statuses like "Done / Released")
+    issues = [i for i in issues if not _is_completed(i)]
 
     if not issues:
         console.print("[yellow]No non-completed issues found.[/yellow]")
