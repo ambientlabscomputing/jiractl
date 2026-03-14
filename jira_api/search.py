@@ -2,7 +2,10 @@
 High-level Jira search and read functions.
 All functions accept a JiraClient and return plain Python dicts/lists.
 """
+
 from __future__ import annotations
+
+from typing import cast
 
 from jira_api.client import JiraClient
 
@@ -28,6 +31,7 @@ DEFAULT_FIELDS = [
 # ---------------------------------------------------------------------------
 # ADF → plain text
 # ---------------------------------------------------------------------------
+
 
 def adf_to_text(node: dict | None, _depth: int = 0) -> str:
     """
@@ -66,6 +70,7 @@ def adf_to_text(node: dict | None, _depth: int = 0) -> str:
 # Single issue fetch
 # ---------------------------------------------------------------------------
 
+
 def get_issue(client: JiraClient, key: str) -> dict:
     """Fetch a single issue by key. Returns the full Jira issue dict."""
     params = {"fields": ",".join(DEFAULT_FIELDS)}
@@ -75,6 +80,7 @@ def get_issue(client: JiraClient, key: str) -> dict:
 # ---------------------------------------------------------------------------
 # JQL search
 # ---------------------------------------------------------------------------
+
 
 def search_issues(
     client: JiraClient,
@@ -126,6 +132,7 @@ def search_all(
 # ---------------------------------------------------------------------------
 # Convenience queries
 # ---------------------------------------------------------------------------
+
 
 def get_epic_children(
     client: JiraClient, epic_key: str, max_results: int = 100
@@ -186,3 +193,62 @@ def get_my_issues(
         parts.append(f'status = "{status}"')
     jql = " AND ".join(parts) + " ORDER BY updated DESC"
     return search_all(client, jql, page_size=min(max_results, 100))
+
+
+# ---------------------------------------------------------------------------
+# Project / field inspection
+# ---------------------------------------------------------------------------
+
+
+def get_project_meta(client: JiraClient, project_key: str) -> dict:
+    """
+    Return full project metadata from GET /project/{key}.
+    Includes name, key, lead, projectTypeKey, description, etc.
+    """
+    return client.get(f"/project/{project_key}")
+
+
+def get_project_statuses(client: JiraClient, project_key: str) -> list[dict]:
+    """
+    Return issue types and their available statuses for a project.
+    Each item: {id, name, subtask, statuses: [{id, name, statusCategory}]}.
+    """
+    return cast(list[dict], client.get(f"/project/{project_key}/statuses"))
+
+
+def get_project_issue_types(client: JiraClient, project_key: str) -> list[dict]:
+    """
+    Return the issue types available for a project via the createmeta API.
+    Each item: {id, name, description, iconUrl, subtask}.
+    """
+    data = client.get(f"/issue/createmeta/{project_key}/issuetypes")
+    return data.get("issueTypes", [])
+
+
+def get_fields_for_issue_type(
+    client: JiraClient,
+    project_key: str,
+    issue_type_id: str,
+    page_size: int = 200,
+) -> list[dict]:
+    """
+    Return all editable fields for a given issue type + project combination
+    via the paginated createmeta fields endpoint.
+
+    Each item is a field descriptor dict with at least:
+      fieldId, key, name, required, schema {type, system/custom}, operations.
+    """
+    all_fields: list[dict] = []
+    start = 0
+    while True:
+        data = client.get(
+            f"/issue/createmeta/{project_key}/issuetypes/{issue_type_id}",
+            params={"maxResults": page_size, "startAt": start},
+        )
+        page: list[dict] = data.get("fields", [])
+        all_fields.extend(page)
+        total = data.get("total", len(all_fields))
+        start += page_size
+        if start >= total or not page:
+            break
+    return all_fields

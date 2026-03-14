@@ -1,16 +1,17 @@
 import os
 import time
-import httpx
 from pathlib import Path
-from rich.console import Console
-from models.config import Config
 
+import httpx
+from rich.console import Console
+
+from models.config import Config
 
 console = Console()
 
 # Retry settings
 _MAX_RETRIES = 4
-_RETRY_BACKOFF_BASE = 1.0   # seconds; doubles each attempt: 1, 2, 4, 8
+_RETRY_BACKOFF_BASE = 1.0  # seconds; doubles each attempt: 1, 2, 4, 8
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -34,7 +35,7 @@ def _request_with_retry(fn, *args, **kwargs) -> httpx.Response:
         if retry_after:
             wait = float(retry_after)
         else:
-            wait = _RETRY_BACKOFF_BASE * (2 ** attempt)
+            wait = _RETRY_BACKOFF_BASE * (2**attempt)
 
         console.print(
             f"[yellow]⚠ HTTP {response.status_code} — retrying in {wait:.1f}s "
@@ -44,7 +45,7 @@ def _request_with_retry(fn, *args, **kwargs) -> httpx.Response:
 
     # Should not reach here
     response.raise_for_status()
-    return response  # type: ignore
+    return response
 
 
 class JiraClient:
@@ -79,7 +80,7 @@ class JiraClient:
     def _url(self, path: str) -> str:
         return path if path.startswith("http") else f"/rest/api/3{path}"
 
-    def get(self, path: str, params: dict = None) -> dict:
+    def get(self, path: str, params: dict | None = None) -> dict:
         """GET request with automatic retry"""
         response = _request_with_retry(self.client.get, self._url(path), params=params)
         return response.json()
@@ -110,4 +111,3 @@ class JiraClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-

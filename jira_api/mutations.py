@@ -8,16 +8,18 @@ Covers:
   - Adding comments (with optional AI-agent attribution banner)
   - Looking up the current user (for "assign to me")
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import cast
 
 from jira_api.client import JiraClient
-
 
 # ---------------------------------------------------------------------------
 # ADF helpers
 # ---------------------------------------------------------------------------
+
 
 def _text_node(text: str, bold: bool = False) -> dict:
     node: dict = {"type": "text", "text": text}
@@ -57,16 +59,22 @@ def _ai_banner_adf(body: str, agent_name: str) -> dict:
 
     banner = {
         "type": "blockquote",
-        "content": [
-            _paragraph(_text_node(banner_text, bold=True))
-        ],
+        "content": [_paragraph(_text_node(banner_text, bold=True))],
     }
 
     # Body: split on newlines to produce separate paragraphs
-    body_paragraphs = [
-        _paragraph(_text_node(line)) if line.strip() else _paragraph(_text_node(" "))
-        for line in body.splitlines()
-    ] if body.strip() else [_paragraph(_text_node(body))]
+    body_paragraphs = (
+        [
+            (
+                _paragraph(_text_node(line))
+                if line.strip()
+                else _paragraph(_text_node(" "))
+            )
+            for line in body.splitlines()
+        ]
+        if body.strip()
+        else [_paragraph(_text_node(body))]
+    )
 
     return _adf_doc(banner, *body_paragraphs)
 
@@ -74,6 +82,7 @@ def _ai_banner_adf(body: str, agent_name: str) -> dict:
 # ---------------------------------------------------------------------------
 # User resolution
 # ---------------------------------------------------------------------------
+
 
 def get_myself(client: JiraClient) -> dict:
     """Return the Jira account dict for the authenticated user."""
@@ -85,7 +94,10 @@ def find_user(client: JiraClient, query: str) -> list[dict]:
     Search for users by display name, email, or account ID.
     Returns a list of user dicts: {accountId, displayName, emailAddress}.
     """
-    return client.get("/user/search", params={"query": query, "maxResults": 10})
+    return cast(
+        list[dict],
+        client.get("/user/search", params={"query": query, "maxResults": 10}),
+    )
 
 
 def resolve_assignee_id(client: JiraClient, value: str) -> str:
@@ -100,7 +112,9 @@ def resolve_assignee_id(client: JiraClient, value: str) -> str:
     if not results:
         raise ValueError(f"No Jira user found matching '{value}'")
     if len(results) > 1:
-        names = ", ".join(f"{u['displayName']} <{u.get('emailAddress','')}>" for u in results)
+        names = ", ".join(
+            f"{u['displayName']} <{u.get('emailAddress', '')}" for u in results
+        )
         raise ValueError(
             f"Ambiguous assignee '{value}' — {len(results)} matches: {names}.\n"
             "Use a more specific name/email or pass the accountId directly."
@@ -112,6 +126,7 @@ def resolve_assignee_id(client: JiraClient, value: str) -> str:
 # Edit issue fields
 # ---------------------------------------------------------------------------
 
+
 def edit_issue(
     client: JiraClient,
     issue_key: str,
@@ -122,14 +137,31 @@ def edit_issue(
     assignee: str | None = None,
     add_labels: list[str] | None = None,
     remove_labels: list[str] | None = None,
+    parent: str | None = None,
+    raw_data: dict | None = None,
 ) -> None:
     """
     Update one or more fields on an existing Jira issue via PUT /issue/{key}.
 
     All arguments are keyword-only. Only the provided (non-None) fields are sent.
     Label changes are merged with the current label set.
+
+    raw_data, if given, is deep-merged into the final request body *after* all
+    structured field flags are applied, so it can inject arbitrary top-level keys
+    (e.g. ``{"fields": {"customfield_10014": "EPIC-1"}}``) or override anything.
     """
-    if not any([summary, description, priority, assignee, add_labels, remove_labels]):
+    if not any(
+        [
+            summary,
+            description,
+            priority,
+            assignee,
+            add_labels,
+            remove_labels,
+            parent,
+            raw_data,
+        ]
+    ):
         raise ValueError("At least one field must be provided to edit.")
 
     fields: dict = {}
@@ -147,6 +179,9 @@ def edit_issue(
         account_id = resolve_assignee_id(client, assignee)
         fields["assignee"] = {"accountId": account_id}
 
+    if parent is not None:
+        fields["parent"] = {"key": parent}
+
     if add_labels or remove_labels:
         # Fetch current labels first
         current = client.get(f"/issue/{issue_key}", params={"fields": "labels"})
@@ -155,14 +190,31 @@ def edit_issue(
         current_labels -= set(remove_labels or [])
         fields["labels"] = sorted(current_labels)
 
-    client.put(f"/issue/{issue_key}", {"fields": fields})
+    payload: dict = {"fields": fields}
+
+    if raw_data:
+        _deep_merge(payload, raw_data)
+
+    client.put(f"/issue/{issue_key}", payload)
+
+
+def _deep_merge(base: dict, override: dict) -> None:
+    """Recursively merge *override* into *base* in-place (override wins on conflicts)."""
+    for key, val in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(val, dict):
+            _deep_merge(base[key], val)
+        else:
+            base[key] = val
 
 
 # ---------------------------------------------------------------------------
 # Delete issue
 # ---------------------------------------------------------------------------
 
-def delete_issue(client: JiraClient, issue_key: str, delete_subtasks: bool = False) -> None:
+
+def delete_issue(
+    client: JiraClient, issue_key: str, delete_subtasks: bool = False
+) -> None:
     """
     Permanently delete a Jira issue.
     Set delete_subtasks=True to also delete any linked sub-tasks.
@@ -177,6 +229,7 @@ def delete_issue(client: JiraClient, issue_key: str, delete_subtasks: bool = Fal
 # Status transitions
 # ---------------------------------------------------------------------------
 
+
 def get_transitions(client: JiraClient, issue_key: str) -> list[dict]:
     """
     Return available transitions for an issue.
@@ -188,19 +241,21 @@ def get_transitions(client: JiraClient, issue_key: str) -> list[dict]:
 
 def transition_issue(client: JiraClient, issue_key: str, transition_id: str) -> None:
     """Apply a transition by its ID to move an issue to a new status."""
-    client.post(f"/issue/{issue_key}/transitions", {"transition": {"id": transition_id}})
+    client.post(
+        f"/issue/{issue_key}/transitions", {"transition": {"id": transition_id}}
+    )
 
 
-def find_transition(
-    client: JiraClient, issue_key: str, target_status: str
-) -> dict:
+def find_transition(client: JiraClient, issue_key: str, target_status: str) -> dict:
     """
     Find the transition whose destination status name matches target_status
     (case-insensitive). Raises ValueError if no match.
     """
     transitions = get_transitions(client, issue_key)
     needle = target_status.lower()
-    matches = [t for t in transitions if t.get("to", {}).get("name", "").lower() == needle]
+    matches = [
+        t for t in transitions if t.get("to", {}).get("name", "").lower() == needle
+    ]
     if not matches:
         available = [t["to"]["name"] for t in transitions]
         raise ValueError(
@@ -214,12 +269,13 @@ def find_transition(
 # Comments
 # ---------------------------------------------------------------------------
 
+
 def add_comment(
     client: JiraClient,
     issue_key: str,
     body: str,
     agent_name: str | None = None,
-) -> dict:
+) -> dict | None:
     """
     Add a comment to a Jira issue.
 

@@ -5,9 +5,12 @@ setup:
 	pyenv local jiractl
 	pip install setuptools
 	pip install -e ".[dev]"
+	pip install -r requirements.dev.txt
+	pre-commit install
 
 install:
 	pip install setuptools
+	pip install -r requirements.dev.txt
 	pip install -e ".[dev]"
 
 build:
@@ -18,3 +21,6 @@ test:
 
 clean:
 	rm -rf dist build jiractl.egg-info
+
+lint:
+	pre-commit run --all-files

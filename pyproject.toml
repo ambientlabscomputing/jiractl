@@ -43,6 +43,7 @@ packages = [
     "commands.describe",
     "commands.edit",
     "commands.export",
+    "commands.inspect",
     "commands.list",
     "commands.search",
     "commands.status",
@@ -54,3 +55,16 @@ packages = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_first_party = ["commands", "jira_api", "models"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = false
+exclude = ["build/", "dist/"]

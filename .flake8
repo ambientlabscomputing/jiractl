@@ -1,0 +1,18 @@
+[flake8]
+# Keep consistent with black's line length
+max-line-length = 88
+# E203: whitespace before ':' (black formats slices this way)
+# W503: line break before binary operator (black prefers this)
+# E501: line too long (black handles this)
+extend-ignore = E203, W503, E501
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info,
+    .venv,
+    .pyenv
+per-file-ignores =
+    # test files may use fixtures without explicit import
+    tests/*: F401, F811

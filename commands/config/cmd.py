@@ -11,7 +11,6 @@ console = Console()
 @click.group()
 def config_group():
     """Manage jiractl configuration."""
-    pass
 
 
 @config_group.command("populate")
@@ -33,7 +32,9 @@ def populate(ctx, dry_run: bool):
     cfg = ctx.obj["config"]
 
     if not cfg.allowed_projects:
-        console.print("[yellow]No allowed_projects defined in config. Nothing to populate.[/yellow]")
+        console.print(
+            "[yellow]No allowed_projects defined in config. Nothing to populate.[/yellow]"
+        )
         return
 
     issue_types_map: dict[str, list[str]] = {}
@@ -43,15 +44,13 @@ def populate(ctx, dry_run: bool):
             for project_key in cfg.allowed_projects:
                 try:
                     types = get_project_issue_types(client, project_key)
-                    names = [t["name"] for t in types]
+                    names: list[str] = [t["name"] for t in types]
                     issue_types_map[project_key] = names
                     console.print(
                         f"  [green]✓[/green] {project_key}: {', '.join(names)}"
                     )
                 except Exception as e:
-                    console.print(
-                        f"  [red]✗[/red] {project_key}: {e}"
-                    )
+                    console.print(f"  [red]✗[/red] {project_key}: {e}")
 
     if not issue_types_map:
         console.print("[red]No issue types discovered. Config not updated.[/red]")
@@ -61,8 +60,8 @@ def populate(ctx, dry_run: bool):
     table = Table(title="Discovered Issue Types")
     table.add_column("Project", style="cyan")
     table.add_column("Issue Types", style="white")
-    for proj, types in issue_types_map.items():
-        table.add_row(proj, ", ".join(types))
+    for proj, type_names in issue_types_map.items():
+        table.add_row(proj, ", ".join(type_names))
     console.print(table)
 
     if dry_run:
@@ -73,6 +72,7 @@ def populate(ctx, dry_run: bool):
     cfg_dict = cfg.model_dump()
     cfg_dict["issue_types"] = issue_types_map
     from models.config import Config
+
     updated = Config(**cfg_dict)
     path = updated.save()
     console.print(f"\n[green]✓[/green] Config saved to [bold]{path}[/bold]")

@@ -78,6 +78,7 @@ def create_epic(
     }
 
     result = client.post("/issue", payload)
+    assert result is not None, "Jira API returned no body for issue creation"
     return result["key"]
 
 
@@ -105,4 +106,5 @@ def create_story(
     }
 
     result = client.post("/issue", payload)
+    assert result is not None, "Jira API returned no body for issue creation"
     return result["key"]

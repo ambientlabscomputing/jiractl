@@ -8,14 +8,17 @@ jiractl edit — update fields on an existing Jira issue.
   jiractl edit TCRM-1 --assignee "jane@example.com"
   jiractl edit TCRM-1 --add-label backend --remove-label frontend
   jiractl edit TCRM-1 --summary "New title" --priority High   # multiple at once
+  jiractl edit TCRM-1 --parent PROJ-42
+  jiractl edit TCRM-1 --raw-data '{"fields":{"customfield_10014":"EPIC-1"}}'
 """
-import click
-from rich.table import Table
-from rich import box
 
+import click
+from rich import box
+from rich.table import Table
+
+from commands.ui import console, format_option
 from jira_api.client import JiraClient
 from jira_api.mutations import edit_issue
-from commands.ui import console, format_option
 
 _PRIORITIES = ("Highest", "High", "Medium", "Low", "Lowest")
 
@@ -47,10 +50,41 @@ _PRIORITIES = ("Highest", "High", "Medium", "Low", "Lowest")
     multiple=True,
     help="Remove a label (repeatable).",
 )
-@click.option("--dry-run", is_flag=True, default=False, help="Preview changes without applying them.")
+@click.option(
+    "--parent",
+    default=None,
+    metavar="ISSUE_KEY",
+    help="Set the parent issue (e.g. PROJ-42). Works for subtasks and next-gen child issues.",
+)
+@click.option(
+    "--raw-data",
+    "raw_data",
+    default=None,
+    metavar="JSON",
+    help='Raw JSON to deep-merge into the Jira PUT body (e.g. \'{"fields":{"customfield_10014":"EPIC-1"}}\').',
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Preview changes without applying them.",
+)
 @format_option()
 @click.pass_context
-def edit(ctx, issue_key, summary, description, priority, assignee, add_labels, remove_labels, dry_run, output_format):
+def edit(
+    ctx,
+    issue_key,
+    summary,
+    description,
+    priority,
+    assignee,
+    add_labels,
+    remove_labels,
+    parent,
+    raw_data,
+    dry_run,
+    output_format,
+):
     """
     Edit fields on an existing Jira issue.
 
@@ -62,10 +96,36 @@ def edit(ctx, issue_key, summary, description, priority, assignee, add_labels, r
       jiractl edit TCRM-1 --summary "Fix booking flow"
       jiractl edit TCRM-1 --priority High --assignee me
       jiractl edit TCRM-1 --add-label ai-generated --remove-label wont-fix
+      jiractl edit TCRM-1 --parent PROJ-42
+      jiractl edit TCRM-1 --raw-data '{"fields":{"customfield_10014":"EPIC-1"}}'
       jiractl edit TCRM-1 --description "New context" --dry-run
     """
-    if not any([summary, description, priority, assignee, add_labels, remove_labels]):
-        raise click.UsageError("Provide at least one field to change (--summary, --description, --priority, --assignee, --add-label, --remove-label).")
+    import json as _json
+
+    parsed_raw: dict | None = None
+    if raw_data:
+        try:
+            parsed_raw = _json.loads(raw_data)
+            if not isinstance(parsed_raw, dict):
+                raise click.BadParameter("--raw-data must be a JSON object (dict).")
+        except _json.JSONDecodeError as exc:
+            raise click.BadParameter(f"--raw-data is not valid JSON: {exc}") from exc
+
+    if not any(
+        [
+            summary,
+            description,
+            priority,
+            assignee,
+            add_labels,
+            remove_labels,
+            parent,
+            parsed_raw,
+        ]
+    ):
+        raise click.UsageError(
+            "Provide at least one field to change (--summary, --description, --priority, --assignee, --add-label, --remove-label, --parent, --raw-data)."
+        )
 
     changes: dict = {}
     if summary:
@@ -80,17 +140,29 @@ def edit(ctx, issue_key, summary, description, priority, assignee, add_labels, r
         changes["add_labels"] = list(add_labels)
     if remove_labels:
         changes["remove_labels"] = list(remove_labels)
+    if parent:
+        changes["parent"] = parent
+    if parsed_raw:
+        changes["raw_data"] = parsed_raw
 
     if dry_run:
         if output_format == "json":
             import json
-            print(json.dumps({"issue": issue_key, "dry_run": True, "changes": changes}, indent=2))
+
+            print(
+                json.dumps(
+                    {"issue": issue_key, "dry_run": True, "changes": changes}, indent=2
+                )
+            )
         elif output_format == "bash":
             for k, v in changes.items():
                 print(f"{k}\t{v}")
         else:
-            table = Table(title=f"[dim]Dry run — changes for[/dim] [cyan]{issue_key}[/cyan]",
-                          box=box.ROUNDED, border_style="dim")
+            table = Table(
+                title=f"[dim]Dry run — changes for[/dim] [cyan]{issue_key}[/cyan]",
+                box=box.ROUNDED,
+                border_style="dim",
+            )
             table.add_column("Field", style="bold")
             table.add_column("New Value")
             for k, v in changes.items():
@@ -113,11 +185,18 @@ def edit(ctx, issue_key, summary, description, priority, assignee, add_labels, r
                 assignee=assignee or None,
                 add_labels=list(add_labels) if add_labels else None,
                 remove_labels=list(remove_labels) if remove_labels else None,
+                parent=parent or None,
+                raw_data=parsed_raw,
             )
 
     if output_format == "json":
         import json
-        print(json.dumps({"issue": issue_key, "updated": True, "changes": changes}, indent=2))
+
+        print(
+            json.dumps(
+                {"issue": issue_key, "updated": True, "changes": changes}, indent=2
+            )
+        )
     elif output_format == "bash":
         print(f"UPDATED\t{issue_key}")
         for k, v in changes.items():
@@ -129,6 +208,11 @@ def edit(ctx, issue_key, summary, description, priority, assignee, add_labels, r
 
 
 class _noop_status:
-    def __init__(self, *a, **k): pass
-    def __enter__(self): return self
-    def __exit__(self, *a): pass
+    def __init__(self, *a, **k):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass

@@ -1,7 +1,7 @@
-import os
 from pathlib import Path
-from pydantic import BaseModel
+
 import yaml
+from pydantic import BaseModel
 
 
 class Config(BaseModel):
@@ -14,7 +14,7 @@ class Config(BaseModel):
     issue_types: dict[str, list[str]] = {}
 
     @classmethod
-    def load(cls, config_path: str | None = None) -> "Config":
+    def load(cls, config_path: str | Path | None = None) -> "Config":
         """
         Load config from a YAML file.
         Tries paths in order: provided path, current directory, ~/.jira/config.yaml
