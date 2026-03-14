@@ -23,6 +23,7 @@ from commands.create.cmd import create
 from commands.delete.cmd import delete
 from commands.describe.cmd import describe
 from commands.edit.cmd import edit
+from commands.export.cmd import export
 from commands.list.cmd import list_issues
 from commands.search.cmd import search
 from commands.status.cmd import status
@@ -34,6 +35,7 @@ cli.add_command(create)
 cli.add_command(delete)
 cli.add_command(describe)
 cli.add_command(edit)
+cli.add_command(export)
 cli.add_command(list_issues, name="list")
 cli.add_command(search)
 cli.add_command(status)

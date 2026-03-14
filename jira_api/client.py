@@ -84,14 +84,18 @@ class JiraClient:
         response = _request_with_retry(self.client.get, self._url(path), params=params)
         return response.json()
 
-    def post(self, path: str, payload: dict) -> dict:
-        """POST request with automatic retry"""
+    def post(self, path: str, payload: dict) -> dict | None:
+        """POST request with automatic retry. Returns None for 204 No Content responses."""
         response = _request_with_retry(self.client.post, self._url(path), json=payload)
+        if response.status_code == 204 or not response.content:
+            return None
         return response.json()
 
-    def put(self, path: str, payload: dict) -> dict:
-        """PUT request with automatic retry"""
+    def put(self, path: str, payload: dict) -> dict | None:
+        """PUT request with automatic retry. Returns None for 204 No Content responses."""
         response = _request_with_retry(self.client.put, self._url(path), json=payload)
+        if response.status_code == 204 or not response.content:
+            return None
         return response.json()
 
     def delete(self, path: str) -> None:
