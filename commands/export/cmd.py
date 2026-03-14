@@ -1,11 +1,12 @@
 """
-jiractl export — export non-completed Jira issues to CSV.
+jiractl export — export Jira issues to CSV (non-completed by default).
 
   jiractl export --project TCRM
   jiractl export --project TCRM --output issues.csv
   jiractl export --project TCRM --type Story
   jiractl export --project TCRM --assignee me
   jiractl export --project TCRM --include-description
+  jiractl export --project TCRM --include-done
 """
 import csv
 import sys
@@ -73,13 +74,15 @@ def _build_jql(
 @click.option("-a", "--assignee", default=None, help="Filter by assignee display name or 'me'.")
 @click.option("-o", "--output", "output_file", default=None, help="Write CSV to this file path (default: stdout).")
 @click.option("--include-description", is_flag=True, default=False, help="Include the issue description column.")
+@click.option("--include-done", is_flag=True, default=False, help="Include completed issues (Done, Closed, Resolved, Cancelled, Won't Do).")
 @click.pass_context
-def export(ctx, project, issue_type, assignee, output_file, include_description):
+def export(ctx, project, issue_type, assignee, output_file, include_description, include_done):
     """
     Export all non-completed Jira issues to CSV.
 
     Issues with status Done, Closed, Resolved, Cancelled, or Won't Do are
-    excluded. Use --project, --type, and --assignee to narrow results.
+    excluded by default. Pass --include-done to include them.
+    Use --project, --type, and --assignee to narrow results.
 
     \b
     Examples:
@@ -87,6 +90,7 @@ def export(ctx, project, issue_type, assignee, output_file, include_description)
       jiractl export --project TCRM --output backlog.csv
       jiractl export --project TCRM --type Story --assignee me
       jiractl export --project TCRM --include-description
+      jiractl export --project TCRM --include-done
     """
     cfg = ctx.obj["config"]
 
@@ -100,10 +104,11 @@ def export(ctx, project, issue_type, assignee, output_file, include_description)
             issues = search_all(client, jql)
 
     # Filter out completed issues client-side (handles statuses like "Done / Released")
-    issues = [i for i in issues if not _is_completed(i)]
+    if not include_done:
+        issues = [i for i in issues if not _is_completed(i)]
 
     if not issues:
-        console.print("[yellow]No non-completed issues found.[/yellow]")
+        console.print("[yellow]No issues found.[/yellow]")
         return
 
     columns = _CSV_COLUMNS_WITH_DESC if include_description else _CSV_COLUMNS
