@@ -163,7 +163,7 @@ class TestBuildAdf:
         defaults = dict(
             user_description="Something broke",
             metadata={
-                "jiractl_version": "0.5.1",
+                "jiractl_version": "0.7.1",
                 "python_version": "3.12.0",
                 "platform": "macOS",
                 "argv": "jiractl --report-bug list --project TEST",
@@ -264,7 +264,7 @@ class TestBuildAdf:
         adf = self._make_adf(
             metadata={
                 "argv": argv,
-                "jiractl_version": "0.5.1",
+                "jiractl_version": "0.7.1",
                 "python_version": "3.12",
                 "platform": "macOS",
                 "cwd": "/tmp",
