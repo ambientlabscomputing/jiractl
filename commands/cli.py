@@ -1,11 +1,24 @@
+import sys
+
 import click
 
+from commands.bug_report import _RECORDER_ACTIVE_KEY, BugRecorder, BugReportGroup
 from models.config import Config
 
 
-@click.group()
+@click.group(cls=BugReportGroup)
+@click.option(
+    "--report-bug",
+    "report_bug",
+    is_flag=True,
+    default=False,
+    help=(
+        "Capture this invocation (argv, output, traceback) and file a bug "
+        "ticket to the configured DEV project at the end of the command."
+    ),
+)
 @click.pass_context
-def cli(ctx: click.Context):
+def cli(ctx: click.Context, report_bug: bool):
     """jiractl - Internal Jira CLI for batch loading data"""
     if ctx.obj is None:
         ctx.obj = {}
@@ -14,6 +27,10 @@ def cli(ctx: click.Context):
     except FileNotFoundError as e:
         click.secho(f"Error: {e}", fg="red", err=True)
         ctx.exit(1)
+
+    if report_bug and not ctx.obj.get(_RECORDER_ACTIVE_KEY):
+        ctx.obj[_RECORDER_ACTIVE_KEY] = True
+        ctx.with_resource(BugRecorder(ctx.obj["config"], sys.argv[1:]))
 
 
 # Import commands after defining cli to avoid circular imports

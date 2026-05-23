@@ -108,3 +108,40 @@ def create_story(
     result = client.post("/issue", payload)
     assert result is not None, "Jira API returned no body for issue creation"
     return result["key"]
+
+
+def create_bug(
+    client: JiraClient,
+    project_key: str,
+    summary: str,
+    adf_description: dict,
+    issue_type: str = "Bug",
+) -> str:
+    """
+    Create a Bug (or fallback issue type) in Jira using a pre-built ADF
+    description dict.  Falls back to "Task" if the requested issue type is
+    not available in the project.
+    Returns the issue key (e.g., "DEV-42").
+    """
+    # Attempt to resolve the requested type, then fall back to Task.
+    resolved_type = issue_type
+    try:
+        resolved_type = resolve_issue_type_name(client, project_key, issue_type)
+    except ValueError:
+        try:
+            resolved_type = resolve_issue_type_name(client, project_key, "Task")
+        except ValueError:
+            pass  # send as-is and let Jira return a helpful error
+
+    payload = {
+        "fields": {
+            "project": {"key": project_key},
+            "issuetype": {"name": resolved_type},
+            "summary": summary,
+            "description": adf_description,
+        }
+    }
+
+    result = client.post("/issue", payload)
+    assert result is not None, "Jira API returned no body for issue creation"
+    return result["key"]

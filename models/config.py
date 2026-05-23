@@ -4,6 +4,14 @@ import yaml
 from pydantic import BaseModel
 
 
+class BugReportConfig(BaseModel):
+    """Configuration for the --report-bug feature."""
+
+    project: str = "DEV"
+    issue_type: str = "Bug"
+    enabled: bool = True
+
+
 class Config(BaseModel):
     base_url: str
     email: str
@@ -12,6 +20,7 @@ class Config(BaseModel):
     # issue_types populated by `jiractl config populate`
     # Maps project key -> list of issue type names available in that project
     issue_types: dict[str, list[str]] = {}
+    bug_report: BugReportConfig = BugReportConfig()
 
     @classmethod
     def load(cls, config_path: str | Path | None = None) -> "Config":
@@ -74,6 +83,10 @@ class Config(BaseModel):
             data.pop("issue_types", None)
         if not data.get("synonyms"):
             data.pop("synonyms", None)
+        # Don't write bug_report when it is still all defaults
+        _default_br = BugReportConfig().model_dump()
+        if data.get("bug_report") == _default_br:
+            data.pop("bug_report", None)
         with open(config_path, "w") as f:
             yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
         return config_path
