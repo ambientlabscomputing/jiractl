@@ -1,0 +1,37 @@
+base_url: https://ambientlabscomputing.atlassian.net
+email: jose@ambientlabscomputing.com
+allowed_projects:
+- TCRM
+- UNDF
+- CPD
+synonyms:
+  TCRM:
+  - tilly
+  - TillyCRM
+  UNDF:
+  - underleaf
+  CPD:
+  - cpd
+  - customer
+issue_types:
+  TCRM:
+  - Task
+  - Epic
+  - Subtask
+  UNDF:
+  - Task
+  - Epic
+  - Subtask
+  - Bug
+  CPD:
+  - Task
+  - Bug
+  - Story
+  - Epic
+  - Subtask
+
+# Bug report configuration (used by --report-bug flag)
+# bug_report:
+#   project: DEV       # Jira project key to file bugs into (default: DEV)
+#   issue_type: Bug    # Issue type to create (default: Bug; falls back to Task)
+#   enabled: true      # Set to false to disable --report-bug globally

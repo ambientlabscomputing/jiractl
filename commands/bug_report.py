@@ -211,6 +211,8 @@ def _run_reporter(
     stderr_lines: list[str],
     traceback_text: Optional[str],
     duration: float,
+    token: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> None:
     """
     Prompt the user, build the ADF report, preview it, and optionally post
@@ -232,8 +234,9 @@ def _run_reporter(
     console.rule(f"[bold {rule_color}]Bug Reporter — Command {status_label}[/]")
 
     # Gather secrets for redaction
-    email = cfg.email
-    token = _load_token()
+    # Prefer the override values (from CLI flags); fall back to config / env.
+    email = email or cfg.email
+    token = token or _load_token()
 
     raw_argv = " ".join(argv)
     safe_argv = _redact(raw_argv, email=email, token=token)
@@ -310,7 +313,7 @@ def _run_reporter(
 
     # Post to Jira
     try:
-        with JiraClient(cfg) as client:
+        with JiraClient(cfg, token=token or None, email=email or None) as client:
             key = create_bug(
                 client=client,
                 project_key=cfg.bug_report.project,
@@ -340,9 +343,17 @@ class BugRecorder:
                exception propagates normally through Click's error handling.
     """
 
-    def __init__(self, cfg, argv: list[str]) -> None:
+    def __init__(
+        self,
+        cfg,
+        argv: list[str],
+        token: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> None:
         self._cfg = cfg
         self._argv = argv
+        self._token = token
+        self._email = email
         self._stdout_buf: collections.deque = collections.deque(maxlen=200)
         self._stderr_buf: collections.deque = collections.deque(maxlen=200)
         self._orig_stdout: IO[str] | None = None
@@ -379,6 +390,8 @@ class BugRecorder:
             stderr_lines=list(self._stderr_buf),
             traceback_text=traceback_text,
             duration=duration,
+            token=self._token,
+            email=self._email,
         )
 
         return False  # Never suppress the original exception
@@ -414,7 +427,14 @@ def _report_bug_callback(
         return
     root_obj[_RECORDER_ACTIVE_KEY] = True
     cfg = root_obj.get("config")
-    ctx.with_resource(BugRecorder(cfg, sys.argv[1:]))
+    ctx.with_resource(
+        BugRecorder(
+            cfg,
+            sys.argv[1:],
+            token=root_obj.get("token"),
+            email=root_obj.get("email"),
+        )
+    )
 
 
 def _inject_report_bug(cmd: click.BaseCommand) -> None:

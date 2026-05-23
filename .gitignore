@@ -1,5 +1,3 @@
-jiractl.config.yaml
-
 # Build artifacts
 build/
 dist/

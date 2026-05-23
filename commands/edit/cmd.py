@@ -16,8 +16,8 @@ import click
 from rich import box
 from rich.table import Table
 
+from commands._client import make_client
 from commands.ui import console, format_option
-from jira_api.client import JiraClient
 from jira_api.mutations import edit_issue
 
 _PRIORITIES = ("Highest", "High", "Medium", "Low", "Lowest")
@@ -171,10 +171,10 @@ def edit(
             console.print("[dim]No changes applied (--dry-run).[/dim]")
         return
 
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
     use_status = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with use_status(f"Updating {issue_key}..."):
             edit_issue(
                 client,

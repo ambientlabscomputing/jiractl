@@ -5,17 +5,22 @@ jiractl delete — permanently delete a Jira issue.
   jiractl delete TCRM-1 --yes            # skip confirmation prompt
   jiractl delete TCRM-1 --subtasks       # also delete sub-tasks
 """
+
 import click
 
-from jira_api.client import JiraClient
-from jira_api.mutations import delete_issue
+from commands._client import make_client
 from commands.ui import console, format_option
+from jira_api.mutations import delete_issue
 
 
 @click.command("delete")
 @click.argument("issue_key")
-@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt.")
-@click.option("--subtasks", is_flag=True, default=False, help="Also delete linked sub-tasks.")
+@click.option(
+    "--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt."
+)
+@click.option(
+    "--subtasks", is_flag=True, default=False, help="Also delete linked sub-tasks."
+)
 @format_option()
 @click.pass_context
 def delete(ctx, issue_key, yes, subtasks, output_format):
@@ -44,15 +49,23 @@ def delete(ctx, issue_key, yes, subtasks, output_format):
             abort=True,
         )
 
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         delete_issue(client, issue_key, delete_subtasks=subtasks)
 
     if output_format == "json":
         import json
-        print(json.dumps({"issue": issue_key, "deleted": True, "subtasks": subtasks}, indent=2))
+
+        print(
+            json.dumps(
+                {"issue": issue_key, "deleted": True, "subtasks": subtasks}, indent=2
+            )
+        )
     elif output_format == "bash":
         print(f"DELETED\t{issue_key}")
     else:
-        console.print(f"[red]✗[/red] Deleted [cyan]{issue_key}[/cyan]" + (" (+ subtasks)" if subtasks else ""))
+        console.print(
+            f"[red]✗[/red] Deleted [cyan]{issue_key}[/cyan]"
+            + (" (+ subtasks)" if subtasks else "")
+        )

@@ -12,8 +12,8 @@ from rich import box
 from rich.panel import Panel
 from rich.table import Table
 
+from commands._client import make_client
 from commands.ui import console, format_option
-from jira_api.client import JiraClient
 from jira_api.search import (
     get_fields_for_issue_type,
     get_project_issue_types,
@@ -49,10 +49,10 @@ def inspect_project(ctx, project_key, output_format):
       jiractl inspect project TCRM
       jiractl inspect project TCRM --format json
     """
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
     use_status = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with use_status(f"Fetching project {project_key}..."):
             meta = get_project_meta(client, project_key)
         with use_status(f"Fetching statuses for {project_key}..."):
@@ -150,10 +150,10 @@ def inspect_fields(ctx, project_key, issue_type_name, custom_only, output_format
       jiractl inspect fields TCRM --issue-type Bug --custom-only
       jiractl inspect fields TCRM --format json
     """
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
     use_status = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with use_status(f"Fetching issue types for {project_key}..."):
             issue_types = get_project_issue_types(client, project_key)
 

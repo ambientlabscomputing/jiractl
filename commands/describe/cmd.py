@@ -14,8 +14,8 @@ import sys
 
 import click
 
+from commands._client import make_client
 from commands.ui import console, format_option, print_issue_detail
-from jira_api.client import JiraClient
 from jira_api.search import get_epic_children, get_issue
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ def describe(ctx, issue_key, epic_key, children, show_parent, comments, output_f
       jiractl describe TCRM-1 --children --format json
       jiractl describe TCRM-1 --children --format bash
     """
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
 
     # Resolve the target key
     target_key = epic_key or issue_key
@@ -79,7 +79,7 @@ def describe(ctx, issue_key, epic_key, children, show_parent, comments, output_f
     # Suppress status spinners for non-table formats so stdout stays clean
     status_ctx = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with status_ctx(f"Fetching {target_key}..."):
             issue = get_issue(client, target_key)
 

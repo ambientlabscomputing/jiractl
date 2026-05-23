@@ -7,12 +7,13 @@ jiractl search — search Jira issues with raw JQL or a query builder.
   jiractl search --project TCRM --format json
   jiractl search --assignee me --format bash
 """
+
 import click
 from rich.syntax import Syntax
 
-from jira_api.client import JiraClient
-from jira_api.search import search_all
+from commands._client import make_client
 from commands.ui import console, format_option, print_issues
+from jira_api.search import search_all
 
 
 def _build_jql(
@@ -43,7 +44,7 @@ def _build_jql(
         parts.append(f'updated >= "{updated_after}"')
     if text:
         parts.append(f'text ~ "{text}"')
-    return " AND ".join(parts or ['project is not EMPTY']) + " ORDER BY updated DESC"
+    return " AND ".join(parts or ["project is not EMPTY"]) + " ORDER BY updated DESC"
 
 
 @click.command("search")
@@ -51,15 +52,34 @@ def _build_jql(
 @click.option("-p", "--project", default=None, help="Filter by project key.")
 @click.option("-t", "--type", "issue_type", default=None, help="Filter by issue type.")
 @click.option("-s", "--status", default=None, help="Filter by status.")
-@click.option("-a", "--assignee", default=None, help="Filter by assignee ('me' = current user).")
+@click.option(
+    "-a", "--assignee", default=None, help="Filter by assignee ('me' = current user)."
+)
 @click.option("--text", default=None, help="Full-text search.")
 @click.option("--label", default=None, help="Filter by label.")
-@click.option("--since", default=None, help="Updated after this date e.g. '2026-01-01'.")
+@click.option(
+    "--since", default=None, help="Updated after this date e.g. '2026-01-01'."
+)
 @click.option("-n", "--limit", default=50, show_default=True, help="Max results.")
-@click.option("--show-jql", is_flag=True, default=False, help="Print the JQL used before running.")
+@click.option(
+    "--show-jql", is_flag=True, default=False, help="Print the JQL used before running."
+)
 @format_option()
 @click.pass_context
-def search(ctx, jql_query, project, issue_type, status, assignee, text, label, since, limit, show_jql, output_format):
+def search(
+    ctx,
+    jql_query,
+    project,
+    issue_type,
+    status,
+    assignee,
+    text,
+    label,
+    since,
+    limit,
+    show_jql,
+    output_format,
+):
     """
     Search Jira issues with raw JQL or a structured query builder.
 
@@ -82,14 +102,22 @@ def search(ctx, jql_query, project, issue_type, status, assignee, text, label, s
     if project:
         project = cfg.resolve_project(project) or project.upper()
 
-    if jql_query and not any([project, issue_type, status, assignee, text, label, since]):
+    if jql_query and not any(
+        [project, issue_type, status, assignee, text, label, since]
+    ):
         final_jql = jql_query.strip()
     elif jql_query:
-        structured = _build_jql(project, issue_type, status, assignee, text, label, since)
+        structured = _build_jql(
+            project, issue_type, status, assignee, text, label, since
+        )
         structured_no_order = structured.rsplit(" ORDER BY ", 1)[0]
-        final_jql = f"({jql_query.strip()}) AND ({structured_no_order}) ORDER BY updated DESC"
+        final_jql = (
+            f"({jql_query.strip()}) AND ({structured_no_order}) ORDER BY updated DESC"
+        )
     else:
-        final_jql = _build_jql(project, issue_type, status, assignee, text, label, since)
+        final_jql = _build_jql(
+            project, issue_type, status, assignee, text, label, since
+        )
 
     if show_jql and output_format == "table":
         console.print(Syntax(final_jql, "sql", theme="monokai", word_wrap=True))
@@ -98,7 +126,7 @@ def search(ctx, jql_query, project, issue_type, status, assignee, text, label, s
 
     use_status = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with use_status("Searching..."):
             issues = search_all(client, final_jql, page_size=min(limit, 100))
             issues = issues[:limit]
@@ -121,6 +149,11 @@ def search(ctx, jql_query, project, issue_type, status, assignee, text, label, s
 
 
 class _noop_status:
-    def __init__(self, *args, **kwargs): pass
-    def __enter__(self): return self
-    def __exit__(self, *args): pass
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass

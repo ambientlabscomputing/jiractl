@@ -14,8 +14,8 @@ import sys
 
 import click
 
+from commands._client import make_client
 from commands.ui import console, flatten_issue
-from jira_api.client import JiraClient
 from jira_api.search import search_all
 
 # Statuses that count as "completed" — excluded by default
@@ -133,7 +133,7 @@ def export(
     statuses = [s.strip() for s in status_filter.split(",")] if status_filter else None
     jql = _build_jql(project, issue_type, assignee, statuses)
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with console.status("Fetching issues..."):
             issues = search_all(client, jql)
 

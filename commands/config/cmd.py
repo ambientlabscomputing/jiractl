@@ -2,7 +2,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from jira_api.client import JiraClient
+from commands._client import make_client
 from jira_api.issues import get_project_issue_types
 
 console = Console()
@@ -39,7 +39,7 @@ def populate(ctx, dry_run: bool):
 
     issue_types_map: dict[str, list[str]] = {}
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with console.status("Querying Jira for project issue types..."):
             for project_key in cfg.allowed_projects:
                 try:

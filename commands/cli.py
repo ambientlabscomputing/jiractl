@@ -3,6 +3,7 @@ import sys
 import click
 
 from commands.bug_report import _RECORDER_ACTIVE_KEY, BugRecorder, BugReportGroup
+from jira_api.client import resolve_token_override
 from models.config import Config
 
 
@@ -17,8 +18,48 @@ from models.config import Config
         "ticket to the configured DEV project at the end of the command."
     ),
 )
+@click.option(
+    "--token-file",
+    "token_file",
+    default=None,
+    metavar="PATH",
+    help="Read the Jira API token from a file (e.g. a CI secret mount).",
+)
+@click.option(
+    "--token-stdin",
+    "token_stdin",
+    is_flag=True,
+    default=False,
+    help="Read the Jira API token from stdin (pipe-friendly, leaves no trace in shell history).",
+)
+@click.option(
+    "--token-env",
+    "token_env",
+    default=None,
+    metavar="NAME",
+    help="Read the Jira API token from the named environment variable (e.g. JIRA_BOT_TOKEN).",
+)
+@click.option(
+    "--email",
+    "email_override",
+    default=None,
+    metavar="ADDRESS",
+    envvar="JIRA_EMAIL",
+    help=(
+        "Override the email used for Jira authentication "
+        "(useful for bot accounts in pipelines). "
+        "Also reads from JIRA_EMAIL env var."
+    ),
+)
 @click.pass_context
-def cli(ctx: click.Context, report_bug: bool):
+def cli(
+    ctx: click.Context,
+    report_bug: bool,
+    token_file,
+    token_stdin,
+    token_env,
+    email_override,
+):
     """jiractl - Internal Jira CLI for batch loading data"""
     if ctx.obj is None:
         ctx.obj = {}
@@ -28,9 +69,41 @@ def cli(ctx: click.Context, report_bug: bool):
         click.secho(f"Error: {e}", fg="red", err=True)
         ctx.exit(1)
 
+    # Validate mutual exclusivity of token override flags
+    token_sources = [
+        s for s in [token_file, token_stdin or None, token_env] if s is not None
+    ]
+    if len(token_sources) > 1:
+        raise click.UsageError(
+            "Only one of --token-file, --token-stdin, or --token-env may be used at a time."
+        )
+
+    # Resolve explicit token override eagerly (reads file/stdin/env once here)
+    if token_file or token_stdin or token_env:
+        try:
+            ctx.obj["token"] = resolve_token_override(
+                token_file=token_file,
+                token_stdin=token_stdin,
+                token_env=token_env,
+            )
+        except (FileNotFoundError, ValueError) as e:
+            click.secho(f"Error: {e}", fg="red", err=True)
+            ctx.exit(1)
+
+    # Store email override (flag already handles JIRA_EMAIL via envvar=)
+    if email_override:
+        ctx.obj["email"] = email_override
+
     if report_bug and not ctx.obj.get(_RECORDER_ACTIVE_KEY):
         ctx.obj[_RECORDER_ACTIVE_KEY] = True
-        ctx.with_resource(BugRecorder(ctx.obj["config"], sys.argv[1:]))
+        ctx.with_resource(
+            BugRecorder(
+                ctx.obj["config"],
+                sys.argv[1:],
+                token=ctx.obj.get("token"),
+                email=ctx.obj.get("email"),
+            )
+        )
 
 
 # Import commands after defining cli to avoid circular imports

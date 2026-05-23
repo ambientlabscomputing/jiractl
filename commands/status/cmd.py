@@ -7,21 +7,27 @@ jiractl status — view or change the status of a Jira issue.
   jiractl status TCRM-1 Done              # quotes optional for single words
   jiractl status TCRM-1 "In Progress" --format json
 """
-import click
-from rich.table import Table
-from rich import box
 
-from jira_api.client import JiraClient
-from jira_api.search import get_issue
-from jira_api.mutations import get_transitions, find_transition, transition_issue
+import click
+from rich import box
+from rich.table import Table
+
+from commands._client import make_client
 from commands.ui import console, format_option, status_style
+from jira_api.mutations import find_transition, get_transitions, transition_issue
+from jira_api.search import get_issue
 
 
 @click.command("status")
 @click.argument("issue_key")
 @click.argument("target_status", required=False, default=None)
-@click.option("--list", "list_transitions", is_flag=True, default=False,
-              help="List all available transitions / reachable statuses.")
+@click.option(
+    "--list",
+    "list_transitions",
+    is_flag=True,
+    default=False,
+    help="List all available transitions / reachable statuses.",
+)
 @format_option()
 @click.pass_context
 def status(ctx, issue_key, target_status, list_transitions, output_format):
@@ -41,10 +47,10 @@ def status(ctx, issue_key, target_status, list_transitions, output_format):
       jiractl status TCRM-1 --list --format json
       jiractl status TCRM-1 "Done" --format bash
     """
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
     use_status = console.status if output_format == "table" else _noop_status
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
 
         # ── List available transitions ─────────────────────────────────────
         if list_transitions:
@@ -56,14 +62,20 @@ def status(ctx, issue_key, target_status, list_transitions, output_format):
 
             if output_format == "json":
                 import json
-                print(json.dumps({
-                    "issue": issue_key,
-                    "current_status": current,
-                    "transitions": [
-                        {"id": t["id"], "name": t["to"]["name"]}
-                        for t in transitions
-                    ],
-                }, indent=2))
+
+                print(
+                    json.dumps(
+                        {
+                            "issue": issue_key,
+                            "current_status": current,
+                            "transitions": [
+                                {"id": t["id"], "name": t["to"]["name"]}
+                                for t in transitions
+                            ],
+                        },
+                        indent=2,
+                    )
+                )
             elif output_format == "bash":
                 print(f"CURRENT\t{current}")
                 print("ID\tTO_STATUS")
@@ -100,7 +112,13 @@ def status(ctx, issue_key, target_status, list_transitions, output_format):
 
             if output_format == "json":
                 import json
-                print(json.dumps({"issue": issue_key, "status": current, "summary": summary}, indent=2))
+
+                print(
+                    json.dumps(
+                        {"issue": issue_key, "status": current, "summary": summary},
+                        indent=2,
+                    )
+                )
             elif output_format == "bash":
                 print(f"STATUS\t{issue_key}\t{current}")
             else:
@@ -121,12 +139,18 @@ def status(ctx, issue_key, target_status, list_transitions, output_format):
 
         if output_format == "json":
             import json
-            print(json.dumps({
-                "issue": issue_key,
-                "transitioned": True,
-                "to": target_status,
-                "transition_id": transition["id"],
-            }, indent=2))
+
+            print(
+                json.dumps(
+                    {
+                        "issue": issue_key,
+                        "transitioned": True,
+                        "to": target_status,
+                        "transition_id": transition["id"],
+                    },
+                    indent=2,
+                )
+            )
         elif output_format == "bash":
             print(f"TRANSITIONED\t{issue_key}\t{target_status}")
         else:
@@ -138,6 +162,11 @@ def status(ctx, issue_key, target_status, list_transitions, output_format):
 
 
 class _noop_status:
-    def __init__(self, *a, **k): pass
-    def __enter__(self): return self
-    def __exit__(self, *a): pass
+    def __init__(self, *a, **k):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass

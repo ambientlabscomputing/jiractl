@@ -15,11 +15,12 @@ content.  The banner includes the agent name and a UTC timestamp:
 
 This acts as a content gate — all AI-written comments are visibly marked.
 """
+
 import click
 
-from jira_api.client import JiraClient
-from jira_api.mutations import add_comment
+from commands._client import make_client
 from commands.ui import console, format_option
+from jira_api.mutations import add_comment
 
 
 @click.command("comment")
@@ -50,14 +51,14 @@ def comment(ctx, issue_key, body, agent, output_format):
       jiractl comment TCRM-1 "$(cat summary.txt)" --agent AutoBot
       jiractl comment TCRM-1 "Done." --format json
     """
-    cfg = ctx.obj["config"]
+    ctx.obj["config"]
 
     use_status = console.status if output_format == "table" else _noop_status
 
     if agent and output_format == "table":
         console.print(f"[dim]🤖 Posting AI-attributed comment as '{agent}'…[/dim]")
 
-    with JiraClient(cfg) as client:
+    with make_client(ctx) as client:
         with use_status(f"Posting comment on {issue_key}..."):
             result = add_comment(client, issue_key, body, agent_name=agent)
 
@@ -65,20 +66,33 @@ def comment(ctx, issue_key, body, agent, output_format):
 
     if output_format == "json":
         import json
-        print(json.dumps({
-            "issue": issue_key,
-            "comment_id": comment_id,
-            "agent": agent,
-            "body": body,
-        }, indent=2))
+
+        print(
+            json.dumps(
+                {
+                    "issue": issue_key,
+                    "comment_id": comment_id,
+                    "agent": agent,
+                    "body": body,
+                },
+                indent=2,
+            )
+        )
     elif output_format == "bash":
         print(f"COMMENTED\t{issue_key}\t{comment_id}")
     else:
         agent_note = f" [dim](via agent: {agent})[/dim]" if agent else ""
-        console.print(f"[green]✓[/green] Comment added to [cyan]{issue_key}[/cyan]{agent_note} [dim](id: {comment_id})[/dim]")
+        console.print(
+            f"[green]✓[/green] Comment added to [cyan]{issue_key}[/cyan]{agent_note} [dim](id: {comment_id})[/dim]"
+        )
 
 
 class _noop_status:
-    def __init__(self, *a, **k): pass
-    def __enter__(self): return self
-    def __exit__(self, *a): pass
+    def __init__(self, *a, **k):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass

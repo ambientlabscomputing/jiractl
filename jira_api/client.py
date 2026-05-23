@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -8,6 +9,56 @@ from rich.console import Console
 from models.config import Config
 
 console = Console()
+
+
+def resolve_token_override(
+    token_file: str | None = None,
+    token_stdin: bool = False,
+    token_env: str | None = None,
+) -> str:
+    """
+    Resolve a Jira API token from an explicit CLI override source.
+
+    Exactly one of token_file, token_stdin, or token_env should be provided.
+    The sources are tried in that order; the first match wins.
+
+    Raises FileNotFoundError / ValueError with an actionable message if the
+    source is specified but yields no token.
+    """
+    if token_file is not None:
+        path = Path(token_file)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Token file not found: {token_file}\n"
+                "Ensure the path is correct and the file is readable."
+            )
+        token = path.read_text().strip()
+        if not token:
+            raise ValueError(f"Token file is empty: {token_file}")
+        return token
+
+    if token_stdin:
+        token = sys.stdin.read().strip()
+        if not token:
+            raise ValueError(
+                "No token received from stdin. "
+                "Pipe the token value before running: echo $TOKEN | jiractl --token-stdin ..."
+            )
+        return token
+
+    if token_env is not None:
+        token = os.environ.get(token_env, "").strip()
+        if not token:
+            raise FileNotFoundError(
+                f"Environment variable '{token_env}' is not set or is empty.\n"
+                f"Set it before running: export {token_env}=<your-token>"
+            )
+        return token
+
+    raise ValueError(
+        "resolve_token_override() called with no override source specified."
+    )
+
 
 # Retry settings
 _MAX_RETRIES = 4
@@ -51,11 +102,17 @@ def _request_with_retry(fn, *args, **kwargs) -> httpx.Response:
 class JiraClient:
     """HTTP client for interacting with Jira Cloud REST API v3"""
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        token: str | None = None,
+        email: str | None = None,
+    ):
         self.config = config
-        self.token = self._read_token()
+        self.token = token if token is not None else self._read_token()
+        effective_email = email if email is not None else config.email
 
-        auth = httpx.BasicAuth(config.email, self.token)
+        auth = httpx.BasicAuth(effective_email, self.token)
         self.client = httpx.Client(
             base_url=config.base_url,
             auth=auth,

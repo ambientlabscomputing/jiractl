@@ -1,17 +1,18 @@
 import json
-import click
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import click
 import pandas as pd
 from rich.console import Console
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from models.config import Config
-from jira_api.client import JiraClient
-from jira_api.issues import create_epic, create_story
+from rich.table import Table
+
+from commands._client import make_client
 from commands.batch.transform.cmd import run_transform
 from commands.batch.validate.cmd import validate_epics, validate_stories
-
+from jira_api.issues import create_epic, create_story
+from models.config import Config
 
 console = Console()
 
@@ -21,6 +22,7 @@ STATE_FILE = "upload_state.json"
 # ---------------------------------------------------------------------------
 # State file helpers
 # ---------------------------------------------------------------------------
+
 
 def _state_path(input_dir: Path) -> Path:
     return input_dir / STATE_FILE
@@ -62,8 +64,14 @@ def load_csv_files(input_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 @click.command()
 @click.argument("input_dir", type=click.Path(exists=True))
 @click.option("--transform", is_flag=True, help="Transform input files first")
-@click.option("--dry-run", is_flag=True, help="Show what would be created without hitting Jira")
-@click.option("--reset", is_flag=True, help="Ignore saved state and start from scratch (re-creates everything)")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be created without hitting Jira"
+)
+@click.option(
+    "--reset",
+    is_flag=True,
+    help="Ignore saved state and start from scratch (re-creates everything)",
+)
 @click.option(
     "-p",
     "--project",
@@ -116,7 +124,9 @@ def upload(
             )
             ctx.exit(1)
 
-        console.print(f"[green]✓ Validation passed ({len(valid_epics)} epics, {len(valid_stories)} stories)[/green]")
+        console.print(
+            f"[green]✓ Validation passed ({len(valid_epics)} epics, {len(valid_stories)} stories)[/green]"
+        )
 
         if dry_run:
             existing_state = _load_state(input_path)
@@ -138,15 +148,31 @@ def upload(
 
             for epic in valid_epics:
                 if epic.epic_name in existing_state["epics"]:
-                    table.add_row("Epic", existing_state["epics"][epic.epic_name], epic.summary, epic.project_key, "skip")
+                    table.add_row(
+                        "Epic",
+                        existing_state["epics"][epic.epic_name],
+                        epic.summary,
+                        epic.project_key,
+                        "skip",
+                    )
                 else:
-                    table.add_row("Epic", "[TBD]", epic.summary, epic.project_key, "create")
+                    table.add_row(
+                        "Epic", "[TBD]", epic.summary, epic.project_key, "create"
+                    )
             for story in valid_stories:
                 sk = _story_key(story)
                 if sk in existing_state["stories"]:
-                    table.add_row("Story", existing_state["stories"][sk], story.summary, story.project_key, "skip")
+                    table.add_row(
+                        "Story",
+                        existing_state["stories"][sk],
+                        story.summary,
+                        story.project_key,
+                        "skip",
+                    )
                 else:
-                    table.add_row("Story", "[TBD]", story.summary, story.project_key, "create")
+                    table.add_row(
+                        "Story", "[TBD]", story.summary, story.project_key, "create"
+                    )
 
             console.print(table)
             console.print("\n[yellow]No issues created (dry-run mode)[/yellow]")
@@ -163,7 +189,7 @@ def upload(
                 f"{len(state['stories'])} stories already created[/yellow]"
             )
 
-        with JiraClient(config) as client:
+        with make_client(ctx) as client:
             created_issues = []
             failures = []
             # Seed epic_key_map from state so stories can link to previously created epics
@@ -197,12 +223,19 @@ def upload(
                         state["epics"][epic.epic_name] = jira_key
                         _save_state(input_path, state)  # persist immediately
                         created_issues.append(
-                            {"type": "Epic", "key": jira_key, "summary": epic.summary, "project": epic.project_key}
+                            {
+                                "type": "Epic",
+                                "key": jira_key,
+                                "summary": epic.summary,
+                                "project": epic.project_key,
+                            }
                         )
                     except Exception as e:
                         msg = str(e)
                         console.print(f"[red]✗ Epic '{epic.summary}': {msg}[/red]")
-                        failures.append({"type": "Epic", "summary": epic.summary, "error": msg})
+                        failures.append(
+                            {"type": "Epic", "summary": epic.summary, "error": msg}
+                        )
 
             # ---- Stories ----
             with Progress(
@@ -210,7 +243,9 @@ def upload(
                 TextColumn("[progress.description]{task.description}"),
                 console=console,
             ) as progress:
-                task_id = progress.add_task("Creating stories...", total=len(valid_stories))
+                task_id = progress.add_task(
+                    "Creating stories...", total=len(valid_stories)
+                )
                 for story in valid_stories:
                     progress.update(task_id, advance=1)
                     sk = _story_key(story)
@@ -227,7 +262,9 @@ def upload(
                     if not epic_jira_key:
                         msg = f"Epic '{story.epic_link}' was not created — cannot link story"
                         console.print(f"[red]✗ Story '{story.summary}': {msg}[/red]")
-                        failures.append({"type": "Story", "summary": story.summary, "error": msg})
+                        failures.append(
+                            {"type": "Story", "summary": story.summary, "error": msg}
+                        )
                         continue
 
                     try:
@@ -241,12 +278,19 @@ def upload(
                         state["stories"][sk] = jira_key
                         _save_state(input_path, state)  # persist immediately
                         created_issues.append(
-                            {"type": "Story", "key": jira_key, "summary": story.summary, "project": story.project_key}
+                            {
+                                "type": "Story",
+                                "key": jira_key,
+                                "summary": story.summary,
+                                "project": story.project_key,
+                            }
                         )
                     except Exception as e:
                         msg = str(e)
                         console.print(f"[red]✗ Story '{story.summary}': {msg}[/red]")
-                        failures.append({"type": "Story", "summary": story.summary, "error": msg})
+                        failures.append(
+                            {"type": "Story", "summary": story.summary, "error": msg}
+                        )
 
             # Persist failures to state for reference
             state["failures"] = failures
@@ -260,18 +304,24 @@ def upload(
         summary_table.add_column("Summary")
         summary_table.add_column("Project", style="magenta")
         for issue in created_issues:
-            summary_table.add_row(issue["type"], issue["key"], issue["summary"], issue["project"])
+            summary_table.add_row(
+                issue["type"], issue["key"], issue["summary"], issue["project"]
+            )
         console.print(summary_table)
 
         total_created = len(created_issues)
         total_skipped = len(state["epics"]) + len(state["stories"]) - total_created
         console.print(f"\n[green]✓ Created {total_created} issues[/green]", end="")
         if total_skipped:
-            console.print(f"  [dim]({total_skipped} already existed, skipped)[/dim]", end="")
+            console.print(
+                f"  [dim]({total_skipped} already existed, skipped)[/dim]", end=""
+            )
         console.print()
 
         if failures:
-            console.print(f"\n[red]✗ {len(failures)} failures — re-run to retry them[/red]")
+            console.print(
+                f"\n[red]✗ {len(failures)} failures — re-run to retry them[/red]"
+            )
             for f in failures:
                 console.print(f"  [red]• {f['type']}: {f['summary']}[/red]")
             console.print(f"\n[dim]State saved to {_state_path(input_path)}[/dim]")
