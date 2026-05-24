@@ -51,6 +51,19 @@ from models.config import Config
         "Also reads from JIRA_EMAIL env var."
     ),
 )
+@click.option(
+    "--config",
+    "config_path",
+    default=None,
+    metavar="PATH",
+    envvar="JIRACTL_CONFIG",
+    type=click.Path(exists=True, dir_okay=False),
+    help=(
+        "Path to a jiractl config YAML file. "
+        "Defaults to jiractl.config.yaml in the current directory, "
+        "then ~/.jira/config.yaml. Also reads from JIRACTL_CONFIG env var."
+    ),
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -59,12 +72,13 @@ def cli(
     token_stdin,
     token_env,
     email_override,
+    config_path,
 ):
     """jiractl - Internal Jira CLI for batch loading data"""
     if ctx.obj is None:
         ctx.obj = {}
     try:
-        ctx.obj["config"] = Config.load()
+        ctx.obj["config"] = Config.load(config_path)
     except FileNotFoundError as e:
         click.secho(f"Error: {e}", fg="red", err=True)
         ctx.exit(1)
