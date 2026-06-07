@@ -16,7 +16,6 @@ from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
-
 from jira_api.client import JiraClient, resolve_token_override
 from models.config import Config
 
@@ -169,7 +168,7 @@ def patched_cli(sample_config, monkeypatch):
 
     # Prevent real HTTP during CLI tests
     with patch("jira_api.client.httpx.Client"):
-        from commands.cli import cli
+        from jiractl.commands.cli import cli
 
         yield cli
 
@@ -225,9 +224,7 @@ class TestCliTokenOptions:
         )
         assert result.exit_code == 0, result.output
 
-    def test_mutual_exclusivity_file_and_stdin(
-        self, cli_runner, patched_cli, token_file
-    ):
+    def test_mutual_exclusivity_file_and_stdin(self, cli_runner, patched_cli, token_file):
         result = cli_runner.invoke(
             patched_cli,
             ["--token-file", str(token_file), "--token-stdin", "version"],
@@ -236,9 +233,7 @@ class TestCliTokenOptions:
         assert result.exit_code != 0
         assert "Only one of" in (result.output + (result.stderr or ""))
 
-    def test_mutual_exclusivity_file_and_env(
-        self, cli_runner, patched_cli, token_file, monkeypatch
-    ):
+    def test_mutual_exclusivity_file_and_env(self, cli_runner, patched_cli, token_file, monkeypatch):
         monkeypatch.setenv("MY_BOT_TOKEN", "bot-xyz")
         result = cli_runner.invoke(
             patched_cli,
@@ -266,9 +261,7 @@ class TestCliTokenOptions:
         )
         assert result.exit_code == 0, result.output
 
-    def test_no_token_flag_uses_existing_defaults(
-        self, cli_runner, patched_cli, monkeypatch
-    ):
+    def test_no_token_flag_uses_existing_defaults(self, cli_runner, patched_cli, monkeypatch):
         """When no override flag is passed, JIRA_TOKEN env var still works."""
         monkeypatch.setenv("JIRA_TOKEN", "legacy-env-token")
         result = cli_runner.invoke(

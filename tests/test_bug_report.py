@@ -12,16 +12,17 @@ from __future__ import annotations
 
 import collections
 import io
+from typing import Any
 
 import pytest
 
-from commands.bug_report import (
+from jiractl.commands.bug_report import (
     BugRecorder,
     _build_adf,
     _redact,
     _TeeStream,
 )
-from models.config import BugReportConfig, Config
+from jiractl.models.config import BugReportConfig, Config
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -160,7 +161,7 @@ class TestRedact:
 
 class TestBuildAdf:
     def _make_adf(self, **kwargs) -> dict:
-        defaults = dict(
+        defaults: dict[str, Any] = dict(
             user_description="Something broke",
             metadata={
                 "jiractl_version": "0.7.1",
@@ -177,7 +178,7 @@ class TestBuildAdf:
             traceback_text=None,
         )
         defaults.update(kwargs)
-        return _build_adf(**defaults)  # type: ignore[arg-type]
+        return _build_adf(**defaults)
 
     def test_returns_adf_doc_root(self) -> None:
         adf = self._make_adf()
@@ -187,67 +188,37 @@ class TestBuildAdf:
 
     def test_contains_invocation_section(self) -> None:
         adf = self._make_adf()
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert "Invocation" in headings
 
     def test_contains_environment_section(self) -> None:
         adf = self._make_adf()
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert "Environment" in headings
 
     def test_contains_reporters_description_section(self) -> None:
         adf = self._make_adf()
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert "Reporter's Description" in headings
 
     def test_traceback_section_present_when_provided(self) -> None:
-        adf = self._make_adf(
-            traceback_text="Traceback (most recent call last):\n  ...\nValueError: oops"
-        )
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        adf = self._make_adf(traceback_text="Traceback (most recent call last):\n  ...\nValueError: oops")
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert "Traceback" in headings
 
     def test_traceback_section_absent_when_none(self) -> None:
         adf = self._make_adf(traceback_text=None)
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert "Traceback" not in headings
 
     def test_stdout_section_present_when_non_empty(self) -> None:
         adf = self._make_adf(stdout_text="some output line\n")
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert any("stdout" in h for h in headings)
 
     def test_stdout_section_absent_when_empty(self) -> None:
         adf = self._make_adf(stdout_text="")
-        headings = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "heading"
-        ]
+        headings = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "heading"]
         assert not any("stdout" in h for h in headings)
 
     def test_code_blocks_have_correct_type(self) -> None:
@@ -274,11 +245,7 @@ class TestBuildAdf:
             }
         )
         # The argv code block should contain the argv value
-        code_texts = [
-            node["content"][0]["text"]
-            for node in adf["content"]
-            if node["type"] == "codeBlock"
-        ]
+        code_texts = [node["content"][0]["text"] for node in adf["content"] if node["type"] == "codeBlock"]
         assert any(argv in t for t in code_texts)
 
 
@@ -288,9 +255,7 @@ class TestBuildAdf:
 
 
 class TestBugRecorder:
-    def test_reraises_exception(
-        self, cfg: Config, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reraises_exception(self, cfg: Config, monkeypatch: pytest.MonkeyPatch) -> None:
         """BugRecorder must not suppress exceptions."""
         monkeypatch.setattr(
             "commands.bug_report._run_reporter",
@@ -301,9 +266,7 @@ class TestBugRecorder:
             with BugRecorder(cfg, ["jiractl", "list"]):
                 raise ValueError("original error")
 
-    def test_no_exception_path(
-        self, cfg: Config, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_exception_path(self, cfg: Config, monkeypatch: pytest.MonkeyPatch) -> None:
         """BugRecorder exits cleanly when no exception is raised."""
         reporter_calls: list[dict] = []
 
@@ -318,9 +281,7 @@ class TestBugRecorder:
         assert len(reporter_calls) == 1
         assert reporter_calls[0]["traceback_text"] is None
 
-    def test_restores_streams_on_exception(
-        self, cfg: Config, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_restores_streams_on_exception(self, cfg: Config, monkeypatch: pytest.MonkeyPatch) -> None:
         """sys.stdout and sys.stderr must be restored even when an exception occurs."""
         import sys
 

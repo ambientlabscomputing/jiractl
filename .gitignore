@@ -11,3 +11,5 @@ __pycache__/
 
 # Logs
 *.log
+
+uv.lock

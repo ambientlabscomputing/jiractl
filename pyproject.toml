@@ -10,8 +10,8 @@ authors = [{name = "Jose", email = "jose@ambientlabscomputing.com"}]
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.1.0",
-    "pandas>=2.0.0",
-    "rich>=13.0.0",
+    "pandas>=3.0.3",
+    "rich>=15.0.0",
     "pydantic>=2.0.0",
     "httpx>=0.25.0",
     "pyyaml>=6.0.0",
@@ -25,41 +25,21 @@ dev = [
 ]
 
 [project.scripts]
-jiractl = "commands.cli:cli"
+jiractl = "jiractl.commands.cli:cli"
 
-[tool.setuptools]
-packages = [
-    "commands",
-    "commands.batch",
-    "commands.batch.transform",
-    "commands.batch.validate",
-    "commands.batch.upload",
-    "commands.config",
-    "commands.create",
-    "commands.create.epic",
-    "commands.create.ticket",
-    "commands.comment",
-    "commands.delete",
-    "commands.describe",
-    "commands.edit",
-    "commands.export",
-    "commands.inspect",
-    "commands.list",
-    "commands.search",
-    "commands.status",
-    "jira_api",
-    "models",
-    "tests",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["jiractl*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 
-[tool.isort]
-profile = "black"
-line_length = 88
-known_first_party = ["commands", "jira_api", "models"]
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["I", "B", "E", "F", "W", "UP"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -67,4 +47,10 @@ strict = false
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_return_any = false
-exclude = ["build/", "dist/"]
+exclude = ["build/", "dist/", "tests/"]
+
+[dependency-groups]
+dev = [
+    "bump2version>=1.0.1",
+    "pre-commit>=4.6.0",
+]

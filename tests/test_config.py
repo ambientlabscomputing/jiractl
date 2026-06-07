@@ -1,7 +1,3 @@
-import pytest
-from models.config import Config
-
-
 def test_config_creation(sample_config):
     """Test creating a Config model"""
     assert sample_config.base_url == "https://test.atlassian.net"
