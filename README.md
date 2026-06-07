@@ -4,7 +4,7 @@ An internal CLI for managing Jira issues, running batch uploads, and scripting c
 
 **Python ≥ 3.13 · Click · Rich · httpx · Pydantic**
 
-Latest Version: `v0.8.0`
+Latest Version: `v1.0.0`
 
 ---
 
