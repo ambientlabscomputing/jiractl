@@ -131,6 +131,7 @@ from jiractl.commands.edit.cmd import edit  # noqa: E402
 from jiractl.commands.export.cmd import export  # noqa: E402
 from jiractl.commands.inspect.cmd import inspect  # noqa: E402
 from jiractl.commands.list.cmd import list_issues  # noqa: E402
+from jiractl.commands.prompt.cmd import to_prompt  # noqa: E402
 from jiractl.commands.search.cmd import search  # noqa: E402
 from jiractl.commands.status.cmd import status  # noqa: E402
 from jiractl.commands.version import version  # noqa: E402
@@ -147,6 +148,7 @@ cli.add_command(inspect)
 cli.add_command(list_issues, name="list")
 cli.add_command(search)
 cli.add_command(status)
+cli.add_command(to_prompt, name="to-prompt")
 cli.add_command(version)
 
 
