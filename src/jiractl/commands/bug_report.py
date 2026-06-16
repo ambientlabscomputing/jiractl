@@ -223,8 +223,8 @@ def _run_reporter(
         return
 
     # Lazy import to avoid circular dependencies at module load time
-    from jira_api.client import JiraClient
-    from jira_api.issues import create_bug
+    from jiractl.jira_api.client import JiraClient
+    from jiractl.jira_api.issues import create_bug
 
     had_error = traceback_text is not None
     rule_color = "red" if had_error else "cyan"

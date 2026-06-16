@@ -174,7 +174,7 @@ def create_ticket_cmd(ctx, project, epic_key, summary, description, issue_type, 
             else:
                 # No parent — create as standalone using whichever type resolves
                 resolved_type = resolve_issue_type_name(client, project_key, issue_type)
-                from jira_api.issues import _description_as_adf
+                from jiractl.jira_api.issues import _description_as_adf
 
                 payload = {
                     "fields": {

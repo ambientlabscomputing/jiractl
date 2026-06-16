@@ -16,8 +16,9 @@ from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
-from jira_api.client import JiraClient, resolve_token_override
-from models.config import Config
+
+from jiractl.jira_api.client import JiraClient, resolve_token_override
+from jiractl.models.config import Config
 
 # ---------------------------------------------------------------------------
 # Fixtures

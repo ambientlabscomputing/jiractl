@@ -22,6 +22,24 @@ def get_boards(client: JiraClient, project_key: str | None = None) -> list[dict]
     return data.get("values", [])
 
 
+def get_board_info(client: JiraClient, board_id: int) -> dict:
+    """Return full details for a specific board, including its type (kanban, scrum, etc)."""
+    data = client.get(f"/rest/agile/1.0/board/{board_id}")
+    return data
+
+
+def is_kanban_board(client: JiraClient, board_id: int) -> bool:
+    """Check if the given board is a Kanban board (vs Scrum, etc)."""
+    try:
+        board = get_board_info(client, board_id)
+        board_type = board.get("type", "").lower()
+        return board_type == "kanban"
+    except Exception:
+        # If we can't determine the type, assume it's not Kanban
+        # This allows the error handling downstream to provide context
+        return False
+
+
 def get_board_backlog(
     client: JiraClient,
     board_id: int,
@@ -43,6 +61,8 @@ def get_board_sprints(
     """
     Return sprints for the given board.
 
+    For Kanban boards (which don't have sprints), returns an empty list.
+
     :param state: Comma-separated sprint states to include.
                   Valid values: active, future, closed.
                   Defaults to all states if not provided.
@@ -50,8 +70,19 @@ def get_board_sprints(
     params: dict = {"maxResults": 50}
     if state:
         params["state"] = state
-    data = client.get(f"/rest/agile/1.0/board/{board_id}/sprint", params=params)
-    return data.get("values", [])
+    try:
+        data = client.get(f"/rest/agile/1.0/board/{board_id}/sprint", params=params)
+        return data.get("values", [])
+    except Exception as e:
+        # Kanban boards return 400 when querying the sprint endpoint
+        # Return empty list rather than raising, allowing downstream to handle gracefully
+        import httpx
+
+        if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400:
+            # This is likely a Kanban board; return empty sprints
+            return []
+        # Re-raise for other errors
+        raise
 
 
 def get_active_sprint(client: JiraClient, board_id: int) -> dict | None:
@@ -117,8 +148,16 @@ def move_to_sprint(client: JiraClient, sprint_id: int, issue_keys: list[str]) ->
     )
 
 
+def move_to_kanban_board(client: JiraClient, board_id: int, issue_keys: list[str]) -> None:
+    """Move one or more issues to a Kanban board (out of backlog zone)."""
+    client.post(
+        f"/rest/agile/1.0/board/{board_id}/issue",
+        payload={"issues": issue_keys},
+    )
+
+
 def move_to_backlog(client: JiraClient, issue_keys: list[str]) -> None:
-    """Move one or more issues to the board backlog (removes them from any sprint)."""
+    """Move one or more issues to the board backlog (removes them from any sprint or Kanban board)."""
     client.post(
         "/rest/agile/1.0/backlog/issue",
         payload={"issues": issue_keys},
