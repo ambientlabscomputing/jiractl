@@ -121,6 +121,7 @@ def cli(
 
 
 # Import commands after defining cli to avoid circular imports
+from jiractl.commands.backlog.cmd import backlog  # noqa: E402
 from jiractl.commands.batch.cmd import batch  # noqa: E402
 from jiractl.commands.comment.cmd import comment  # noqa: E402
 from jiractl.commands.config.cmd import config_group  # noqa: E402
@@ -136,6 +137,7 @@ from jiractl.commands.search.cmd import search  # noqa: E402
 from jiractl.commands.status.cmd import status  # noqa: E402
 from jiractl.commands.version import version  # noqa: E402
 
+cli.add_command(backlog)
 cli.add_command(batch)
 cli.add_command(comment)
 cli.add_command(config_group, name="config")

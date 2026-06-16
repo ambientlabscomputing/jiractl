@@ -130,7 +130,9 @@ class JiraClient:
         raise FileNotFoundError("Jira API token not found. Set JIRA_TOKEN env var or create ~/.jira/token")
 
     def _url(self, path: str) -> str:
-        return path if path.startswith("http") else f"/rest/api/3{path}"
+        if path.startswith("http") or path.startswith("/rest/agile/"):
+            return path
+        return f"/rest/api/3{path}"
 
     def get(self, path: str, params: dict | None = None) -> dict:
         """GET request with automatic retry"""

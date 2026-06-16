@@ -20,6 +20,9 @@ class Config(BaseModel):
     # issue_types populated by `jiractl config populate`
     # Maps project key -> list of issue type names available in that project
     issue_types: dict[str, list[str]] = {}
+    # board_ids populated by `jiractl config boards`
+    # Maps project key -> Jira board ID for that project's board
+    board_ids: dict[str, int] = {}
     bug_report: BugReportConfig = BugReportConfig()
 
     @classmethod
@@ -76,11 +79,13 @@ class Config(BaseModel):
         if config_path is None:
             config_path = Path("jiractl.config.yaml")
         data = self.model_dump(exclude_none=True)
-        # Don't write empty issue_types / synonyms dicts
+        # Don't write empty issue_types / synonyms / board_ids dicts
         if not data.get("issue_types"):
             data.pop("issue_types", None)
         if not data.get("synonyms"):
             data.pop("synonyms", None)
+        if not data.get("board_ids"):
+            data.pop("board_ids", None)
         # Don't write bug_report when it is still all defaults
         _default_br = BugReportConfig().model_dump()
         if data.get("bug_report") == _default_br:
